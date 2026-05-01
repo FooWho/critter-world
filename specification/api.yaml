@@ -1,0 +1,643 @@
+openapi: 3.0.3
+info:
+  title: CS 2112 Fall 2025 CritterWorld API
+  description: |
+    This document specifies the APIs for A6 of CS 2112 at Cornell for Fall 2025. 
+    CritterWorld servers should implement these interfaces exactly, and rely on nothing else, 
+    in order to comply with the course staff client code.
+
+    Last updated 11/4/2025
+
+servers:
+  - url: http://critterworld.azurewebsites.net
+    description: Demo server
+
+tags:
+  - name: Critters
+    description: Relating to calls to get information about critters in the world
+  - name: World
+    description: Relating to calls about the world environment
+  - name: Control
+    description: Relating to controlling the simulation
+  - name: Extensions
+    description: |
+      Optional extensions to other parts of the API
+      
+      If implementing the authentication extension, all other calls take a `session_id` parameter which
+      specifies the permissions of the caller. This is the same `session_id` returned by the Login endpoint.
+      
+      - Any calls that would modify the state of the world require a `session_id` with write access
+      - Some special calls (e.g. New World) require admin access
+      - The ability to read the `program` and `recently_executed_rule`, and ability to delete a critter 
+        are only granted to the user with the `session_id` that created the critter (or an admin `session_id`)
+      
+      If implementing the timestamp diffing extension, the `GET /world` endpoint responds to the `update_since`
+      parameter and should return the `current_version_number`, `update_since`, and `dead_critters` fields.
+
+paths:
+  /login:
+    post:
+      tags:
+        - Extensions
+      summary: Log in to the server
+      description: |
+        The user making this call will need to submit a password (which are set via the command line when the server starts up).
+        Level, which is effectively the username to log in as, can be one of:
+        - "read", for reading general world state (excluding critter programs)
+        - "write", for changing the world state and reading back programs of critters that this user created
+        - "admin", for creating new worlds and having control over all critters
+      parameters:
+        - name: level
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [read, write, admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - level
+                - password
+              properties:
+                level:
+                  type: string
+                  enum: [read, write, admin]
+                password:
+                  type: string
+                  example: swordfish
+      responses:
+        '200':
+          description: Successful login
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  session_id:
+                    type: integer
+                    example: 123
+        '401':
+          description: Unauthorized - incorrect password for the specified authentication level
+
+  /critters:
+    get:
+      tags:
+        - Critters
+      summary: List all Critters
+      description: |
+        A list of all the Critter objects with all their details.
+        
+        If using the authentication extension, the `program` and `recently_executed_rule` fields should
+        only be included if the critter was created by the user with `session_id`, or if `session_id` is an admin.
+      responses:
+        '200':
+          description: List of all critters
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Critter'
+    
+    post:
+      tags:
+        - Critters
+      summary: Create a Critter
+      description: |
+        This POST request should contain information about where to place new critters in the world, and what those new critters are. 
+        The request should contain either a `positions` keyword or a `num` keyword, but not both. 
+        If `positions` is given, the server places exact copies of the critter in all the specified locations with the specified orientations. 
+        If `num` is given, the server places that many critters in random locations with random orientations. 
+        If `species_id` is not given, the server creates a new identifier. 
+        The server will update the ID numbers automatically for the new critters.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: '#/components/schemas/CreateCritterWithPositions'
+                - $ref: '#/components/schemas/CreateCritterRandom'
+      responses:
+        '201':
+          description: Critter(s) created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  species_id:
+                    type: string
+                    description: The species identifier of the newly created critter(s)
+                  ids:
+                    type: array
+                    items:
+                      type: integer
+
+  /critter/{id}:
+    get:
+      tags:
+        - Critters
+      summary: Retrieve a Critter
+      description: |
+        A single Critter object with all its details (including `program` and `recently_executed_rule` 
+        if the critter was created by the user with `session_id`, or if `session_id` is an admin)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: The id of the critter being queried
+      responses:
+        '200':
+          description: Critter details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Critter'
+    
+    delete:
+      tags:
+        - Critters
+      summary: Remove a Critter
+      description: Removes a specific critter from the world simulation.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: The id of the critter being deleted
+      responses:
+        '204':
+          description: Critter deleted successfully
+
+  /world:
+    get:
+      tags:
+        - World
+        - Extensions
+      summary: Get the state of the world
+      description: |
+        This endpoint supports two separate uses. It can either returned
+        the state of the entire world, or it can be used to query only
+        a subregion of the world.
+
+        If implementing the optional timestamp diffing extension,
+        the `update_since` parameter should also be supported by both uses.
+
+        The `Nothing` object does not need to be returned in the `state` array
+        of the response unless the timestamp diffing extension is implemented,
+        and the state of the hex used to contain an object at the previous step
+        that no longer exists. However, all clients must be able to handle these
+        objects.
+
+        Expand the `params` heading below to see the query parameters in
+        more detail.
+      parameters:
+        - in: query
+          name: params
+          style: form
+          explode: true
+          schema:
+            oneOf:
+              - $ref: '#/components/schemas/FullWorldQuery'
+              - $ref: '#/components/schemas/SubsectionWorldQuery'
+              - $ref: '#/components/schemas/ExtensionFullWorldQuery'
+              - $ref: '#/components/schemas/ExtensionSubsectionWorldQuery'
+      responses:
+        '200':
+          description: World state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorldState'
+    
+    post:
+      tags:
+        - World
+      summary: Make a new world on the server
+      description: |
+        You should assume that all critter files in the world definition can be found on the server.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - description
+              properties:
+                description:
+                  type: string
+                  description: The world definition, from the file
+                  example: |
+                    name Very Epic CritterWorld
+                    size 20 20
+                    rock 0 0
+                    food 1 1 20
+      responses:
+        '201':
+          description: World created successfully
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: Ok
+
+  /world/create_entity:
+    post:
+      tags:
+        - World
+      summary: Create a food or rock object
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - row
+                - col
+                - type
+              properties:
+                row:
+                  type: integer
+                  description: The row at which to create the entity
+                col:
+                  type: integer
+                  description: The col at which to create the entity
+                type:
+                  type: string
+                  enum: [food, rock]
+                  description: The type of entity to create
+                amount:
+                  type: integer
+                  description: If the entity is "food", the amount of food to place
+                  example: 20
+      responses:
+        '201':
+          description: Entity created successfully
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: Ok
+        '406':
+          description: Not Acceptable - entity could not be created at the specified location
+
+  /step:
+    post:
+      tags:
+        - Control
+      summary: Advance the world by steps
+      description: |
+        When (and only when) the simulation rate is 0, a client may use the `step` command to advance the simulation world. 
+        The optional `count` parameter specifies a number of timesteps to advance by. If omitted, it defaults to 1. 
+        If a client tries to step the simulation while the simulation is running continuously (i.e., while the rate is not zero), 
+        the server should respond with the status code 406, meaning "Not Acceptable".
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                count:
+                  type: integer
+                  description: The number of steps to take (defaults to 1)
+                  example: 1
+      responses:
+        '200':
+          description: Step executed successfully
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: Ok
+        '406':
+          description: Not Acceptable - cannot step while simulation is running
+
+  /run:
+    post:
+      tags:
+        - Control
+      summary: Run the world continuously/change the rate
+      description: |
+        `rate` is the number of timesteps for the simulation to perform per second. 
+        When the rate is specified as 0, the simulation stops. 
+        If a negative rate is specified, the server should respond with the status code 406, meaning "Not Acceptable".
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - rate
+              properties:
+                rate:
+                  type: number
+                  format: float
+                  description: The rate at which to run the simulation
+                  example: 21.12
+      responses:
+        '200':
+          description: Rate changed successfully
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: Ok
+        '406':
+          description: Not Acceptable - negative rate specified
+
+components:
+  schemas:
+    Critter:
+      type: object
+      required:
+        - id
+        - species_id
+        - row
+        - col
+        - direction
+        - mem
+      properties:
+        id:
+          type: integer
+        species_id:
+          type: string
+        program:
+          type: string
+          description: |
+            The critter's entire program (if implementing the optional
+            authentication extension, this field should be omitted if the
+            `session_id` does not have write permission for this critter)
+        row:
+          type: integer
+        col:
+          type: integer
+        direction:
+          type: integer
+        mem:
+          type: array
+          items:
+            type: integer
+        recently_executed_rule:
+          type: integer
+          description: |
+            The index of the most recently executed rule in the critter's program
+            (if implementing the optional authentication extension, this field
+            should be omitted if the `session_id` does not have write permission
+            for this critter)
+      example:
+        id: 1
+        species_id: basic-critter
+        program: "[the critter's entire program]"
+        row: 5
+        col: 7
+        direction: 1
+        mem: [1, 2, 3, 4]
+        recently_executed_rule: 3
+
+    CreateCritterWithPositions:
+      type: object
+      required:
+        - program
+        - mem
+        - positions
+      properties:
+        species_id:
+          type: string
+        program:
+          type: string
+          description: The critter's entire program
+        mem:
+          type: array
+          items:
+            type: integer
+        positions:
+          type: array
+          items:
+            type: object
+            properties:
+              row:
+                type: integer
+              col:
+                type: integer
+              direction:
+                type: integer
+
+    CreateCritterRandom:
+      type: object
+      required:
+        - program
+        - mem
+        - num
+      properties:
+        species_id:
+          type: string
+        program:
+          type: string
+          description: The critter's entire program
+        mem:
+          type: array
+          items:
+            type: integer
+        num:
+          type: integer
+          description: Number of critters to place randomly
+
+    WorldState:
+      type: object
+      properties:
+        current_timestep:
+          type: integer
+        current_version_number:
+          type: integer
+          description: (Extension) Represents the version number of the world. Only returned if the timestamp diffing extension is enabled.
+        update_since:
+          type: integer
+          description: (Extension) Only returned if the `update_since` query string was used in the request and the timestamp diffing extension is enabled.
+        rate:
+          type: number
+          format: float
+        name:
+          type: string
+        population:
+          type: integer
+          description: The number of critters
+        width:
+          type: integer
+          description: The width of the world
+        height:
+          type: integer
+          description: The height of the world
+        dead_critters:
+          type: array
+          description: (Extension) The critters that have died in the world since `update_since`. Only returned if the timestamp diffing extension is enabled.
+          items:
+            type: integer
+        state:
+          type: array
+          items:
+            oneOf:
+              - $ref: '#/components/schemas/Rock'
+              - $ref: '#/components/schemas/Food'
+              - $ref: '#/components/schemas/CritterInWorld'
+              - $ref: '#/components/schemas/Nothing'
+
+    Rock:
+      type: object
+      required:
+        - type
+        - row
+        - col
+      properties:
+        type:
+          type: string
+          enum: [rock]
+        row:
+          type: integer
+        col:
+          type: integer
+
+    Food:
+      type: object
+      required:
+        - type
+        - row
+        - col
+        - value
+      properties:
+        type:
+          type: string
+          enum: [food]
+        row:
+          type: integer
+        col:
+          type: integer
+        value:
+          type: integer
+
+    CritterInWorld:
+      allOf:
+        - type: object
+          required:
+            - type
+          properties:
+            type:
+              type: string
+              enum: [critter]
+        - $ref: '#/components/schemas/Critter'
+
+    Nothing:
+      type: object
+      required:
+        - type
+        - row
+        - col
+      properties:
+        type:
+          type: string
+          enum: [nothing]
+        row:
+          type: integer
+        col:
+          type: integer
+      description: If some grid changed from having something to having nothing
+    
+    FullWorldQuery:
+      type: object
+      description: No parameters required to fetch the whole world
+
+    SubsectionWorldQuery:
+      type: object
+      required:
+        - from_row
+        - from_col
+        - height
+        - width
+      properties:
+        from_col:
+          type: integer
+          description: Row that the subsection starts from, inclusive
+          example: 1
+        from_row:
+          type: integer
+          description: Column that the subsection starts from, inclusive
+          example: 3
+        height:
+          type: integer
+          description: Height of the subsection
+          example: 5
+        width:
+          type: integer
+          description: Width of the subsection
+          example: 2
+        
+    ExtensionFullWorldQuery:
+      type: object
+      description: Only for auth and diff extensions
+      required:
+        - session_id
+      properties:
+        session_id:
+          type: integer
+          description:  |
+            (Extension) The user's session ID obtained from the `/login` endpoint. Returns 401 if invalid.
+        update_since:
+          type: integer
+          description: |
+            (Extension) An integer that specifies that the client is only interested in the hexes that have changed
+            since the `update_since` version number. That is, if the current version number is 10 and
+            `update_since` is 7, then the server should return the content of all tiles whose content is
+            different in version number 10. This means that changes in version numbers 8 or 9 that have
+            been superseded by later changes need not be reported (though they may be).
+            `update_since` may return updates from earlier than the desired update, so long as it returns the
+            `update_since` parameter accurately. If `update_since` is not given, the entire state of the world at
+            the current version number is returned.
+
+    ExtensionSubsectionWorldQuery:
+      type: object
+      description: Only for auth and diff extensions
+      required:
+        - session_id
+        - from_row
+        - from_col
+        - height
+        - width
+      properties:
+        session_id:
+          type: integer
+          description:  |
+            (Extension) The user's session ID obtained from the `/login` endpoint. Returns 401 if invalid.
+        update_since:
+          type: integer
+          description: |
+            (Extension) An integer that specifies that the client is only interested in the hexes that have changed
+            since the `update_since` version number. That is, if the current version number is 10 and
+            `update_since` is 7, then the server should return the content of all tiles whose content is
+            different in version number 10. This means that changes in version numbers 8 or 9 that have
+            been superseded by later changes need not be reported (though they may be).
+            `update_since` may return updates from earlier than the desired update, so long as it returns the
+            `update_since` parameter accurately. If `update_since` is not given, the entire state of the world at
+            the current version number is returned.
+        from_col:
+          type: integer
+          description: Row that the subsection starts from, inclusive
+        from_row:
+          type: integer
+          description: Column that the subsection starts from, inclusive
+        height:
+          type: integer
+          description: Height of the subsection
+        width:
+          type: integer
+          description: Width of the subsection

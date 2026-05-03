@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import ClassVar, Iterable, Iterator, TYPE_CHECKING
 from schemas import Token, CritterParseError, TokenLexeme, TermTuple, FactorTuple, TOKENS, SET_RELOPS, SET_ADDOPS, SET_MULOPS, SET_SENSORS, SET_FACTOR_TERMINATORS, SET_FACTORS
-from abstractSyntaxTree import Program, Rule, Condition, Command, Conjunction, Relation, Expr, Term, Factor, Number
+from abstractSyntaxTree import Program, Rule, Condition, Command, Conjunction, Relation, Expr, Term, Factor, Number, GroupedExpression
 
 class Parser():
     def __init__(self, tokens: Iterator[Token]) -> None:
@@ -90,7 +90,7 @@ class Parser():
     def parseTerms(self, token: Token) -> list[TermTuple]:
         terms: list[TermTuple] = []
   
-        while token.tokenType not in SET_RELOPS | {TOKENS.T_COMM}:
+        while token.tokenType not in SET_RELOPS | {TOKENS.T_COMM, TOKENS.T_R_PAREN}:
             if token == self.peek():
                 token = self.getToken()
             addOp: TokenLexeme = TokenLexeme(TOKENS.T_NONE, '')
@@ -112,6 +112,7 @@ class Parser():
     
     def parseFactors(self, token: Token) -> list[FactorTuple]:
         number: Number
+        groupedExpression: GroupedExpression
         mulOp: TokenLexeme = TokenLexeme(TOKENS.T_NONE, '')
         factors:list[FactorTuple] = []
 
@@ -131,12 +132,14 @@ class Parser():
                 case TOKENS.T_NUMBER:
                     number = self.parseNumber(token)
                     factors.append(FactorTuple(mulOp, number))
-                    # Lookahead for next loop iteration
                     token = self.peek()
                 case TOKENS.T_MEM:
                     pass
                 case TOKENS.T_L_PAREN:
-                    pass
+                    # We should be reading a grouped expression
+                    groupedExpression = self.parseGroupedExpression(token)
+                    factors.append(FactorTuple(mulOp, groupedExpression))
+                    token = self.peek()
                 case TOKENS.T_MINUS:
                     pass
                 case val if val in SET_SENSORS:
@@ -154,5 +157,13 @@ class Parser():
         else:    
             return Number(TokenLexeme(token.tokenType, token.lexeme))
     
-
+    def parseGroupedExpression(self, token: Token) -> GroupedExpression:
+        expr: Expr
+        token = self.getToken()
+        expr = self.parseExpression(token)
+        token = self.peek()
+        if token.tokenType != TOKENS.T_L_PAREN:
+            raise CritterParseError(f'Error on line {token.line} at position {token.column}: Expected ")". Read: {token.tokenType}:"{token.lexeme}"')
+        
+        return GroupedExpression()
 

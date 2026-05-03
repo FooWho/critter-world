@@ -3,7 +3,7 @@ from enum import StrEnum
 from typing import NamedTuple, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from abstractSyntaxTree import Condition, Command, Term, Expr, Factor, Number
+    from abstractSyntaxTree import Condition, Command, Term, Expr, Factor, Number, GroupedExpression
 
 class TOKENS(StrEnum):
     T_MEMSIZE = r'MEMSIZE|mem\[0\]' 
@@ -72,7 +72,7 @@ class CritterParseError(Exception):
 
 class FactorTuple(NamedTuple):
     mulOp: TokenLexeme
-    factor: Number
+    factor: Number|GroupedExpression
 
 class TermTuple(NamedTuple):
     addOp: TokenLexeme

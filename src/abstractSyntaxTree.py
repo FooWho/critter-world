@@ -146,6 +146,12 @@ class Number(ASTNode):
 
     def __repr__(self) -> str:
         return self.number.lexeme
+    
+class GroupedExpression(ASTNode):
+    _children: ClassVar[tuple[str]] = ('groupedExpression',)
+
+    def __init__(self, groupedExpression: Expr|None = None) -> None:
+        self.groupedExpression: Expr = groupedExpression or Expr()
         
 
 

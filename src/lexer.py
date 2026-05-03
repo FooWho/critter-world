@@ -11,7 +11,7 @@ class Lexer():
         self.compiledPattern = re.compile(self.combinedPattern)
 
     def tokenize(self, code: str) -> Iterator[Token]:
-        tokenType: str
+        tokenType: TOKENS
         lexeme: str 
         lineNumber:int
         column: int
@@ -24,14 +24,14 @@ class Lexer():
             tmp = tc.lastgroup
 
             if tmp:
-                tokenType = tmp
+                tokenType = TOKENS[tmp]
             else:
                 tokenType = TOKENS.T_MISMATCH
 
             lexeme = tc.group()
             column = tc.start() - lineStart
 
-            if tokenType == 'T_WS':
+            if tokenType == TOKENS.T_WS:
                 if '\n' in lexeme:
                     lineNumber += lexeme.count('\n')
                     lineStart = tc.end()

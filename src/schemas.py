@@ -58,13 +58,13 @@ class TOKENS(StrEnum):
     T_NONE = r''
 
 class Token(NamedTuple):
-    tokenType: str
+    tokenType: TOKENS
     lexeme: str
     line: int
     column: int
 
 class TokenLexeme(NamedTuple):
-    tokenType: str
+    tokenType: TOKENS
     lexeme: str
 
 class CritterParseError(Exception):
@@ -81,3 +81,6 @@ class TermTuple(NamedTuple):
 SET_RELOPS = {TOKENS.T_LESS, TOKENS.T_LEQU, TOKENS.T_LESS, TOKENS.T_EQU, TOKENS.T_NEQU, TOKENS.T_GREAT, TOKENS.T_GEQU}
 SET_ADDOPS = {TOKENS.T_PLUS, TOKENS.T_MINUS}
 SET_MULOPS = {TOKENS.T_STAR, TOKENS.T_DIV}
+SET_SENSORS = {TOKENS.T_NEARBY, TOKENS.T_AHEAD, TOKENS.T_RANDOM, TOKENS.T_SMELL}
+SET_FACTOR_TERMINATORS = SET_ADDOPS | SET_RELOPS | {TOKENS.T_SEMICOLON, TOKENS.T_COMMENT, TOKENS.T_COMM}
+SET_FACTORS = SET_SENSORS | {TOKENS.T_NUMBER, TOKENS.T_MEM, TOKENS.T_L_PAREN, TOKENS.T_MINUS}

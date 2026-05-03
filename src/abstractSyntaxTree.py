@@ -103,8 +103,6 @@ class Expr(ASTNode):
     def setTerms(self, terms: list[TermTuple]) -> None:
         self.terms:list[TermTuple] = terms
 
-    
-
 
 class Term(ASTNode):
     _children: ClassVar[tuple[str]] = ('factors',)
@@ -115,8 +113,8 @@ class Term(ASTNode):
     def __repr__(self) -> str:
         tmp = str(self.factors[0].factor)
         for factor in self.factors[1:]:
-            tmp += ' ' + factor.mulOp.lexeme
-            tmp += str(factor)
+            tmp += ' ' + factor.mulOp.lexeme + ' '
+            tmp += str(factor.factor)
         return tmp
 
     def addFactor(self, factor: FactorTuple) -> None:
@@ -124,8 +122,6 @@ class Term(ASTNode):
 
     def setFactors(self, factors: list[FactorTuple]) -> None:
         self.factors = factors
-
-    
 
 
 class Factor(ASTNode):
@@ -141,7 +137,6 @@ class Factor(ASTNode):
 
         return Number()
 
-        
 
 class Number(ASTNode):
     _children: ClassVar[tuple[str]] = ('number',)

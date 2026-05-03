@@ -79,7 +79,7 @@ class Relation(ASTNode):
                  relOp: TokenLexeme|None = None) -> None:
         
         self.leftExpr: Expr = leftExpr or Expr()
-        self.relOp: TokenLexeme = relOp or TokenLexeme('T_NONE', '')
+        self.relOp: TokenLexeme = relOp or TokenLexeme(TOKENS.T_NONE, '')
         self.rightExpr: Expr = rightExpr or Expr()  
 
     def __repr__(self) -> str: 

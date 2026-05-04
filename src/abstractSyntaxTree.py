@@ -48,7 +48,7 @@ class Condition(ASTNode):
     _children: ClassVar[tuple[str]] = ('conjunctions',)
     
     def __init__(self, conjunctions: list[Conjunction]|None = None) -> None:
-        self.conjunctions: list[Conjunction] = conjunctions or []
+        self.conjunctions = conjunctions or []
 
     def addConjunction(self, conjunction: Conjunction) -> None:
         self.conjunctions.append(conjunction)
@@ -62,7 +62,7 @@ class Command(ASTNode):
 class Conjunction(ASTNode):
     _children: ClassVar[tuple[str]] = ('relations',)
 
-    def __init(self, relations: list[Relation]|None = None) -> None:
+    def __init__(self, relations: list[Relation]|None = None) -> None:
         self.relations: list[Relation] = relations or []
 
     def addRelation(self, relation: Relation) -> None:
@@ -72,18 +72,23 @@ class Conjunction(ASTNode):
         self.relations = relations
 
 class Relation(ASTNode):
-    _children: ClassVar[tuple[str, str, str]] = ('leftExpr', 'relOp', 'rightExpr')
+    _children: ClassVar[tuple[str, str, str, str]] = ('leftExpr', 'relOp', 'rightExpr', 'groupedCondition')
 
-    def __init__(self, leftExpr: Expr|None = None, 
-                 rightExpr: Expr|None = None, 
-                 relOp: TokenLexeme|None = None) -> None:
+    def __init__(self, leftExpr: Expr|None = None,
+                 relOp: TokenLexeme|None = None, 
+                 rightExpr: Expr|None = None,
+                 groupedCondition: GroupedCondition|None = None) -> None:
         
         self.leftExpr: Expr = leftExpr or Expr()
         self.relOp: TokenLexeme = relOp or TokenLexeme(TOKENS.T_NONE, '')
-        self.rightExpr: Expr = rightExpr or Expr()  
+        self.rightExpr: Expr = rightExpr or Expr()
+        self.groupedCondition: GroupedCondition = groupedCondition or GroupedCondition()
 
-    def __repr__(self) -> str: 
-        return str(self.leftExpr) + ' ' + self.relOp.lexeme + ' ' + str(self.rightExpr)
+    def __repr__(self) -> str:
+        if self.leftExpr.terms: 
+            return str(self.leftExpr) + ' ' + self.relOp.lexeme + ' ' + str(self.rightExpr)
+        else:
+            return ':-('
     
 class Expr(ASTNode):
     _children: ClassVar[tuple[str]] = ('terms',)
@@ -152,6 +157,19 @@ class GroupedExpression(ASTNode):
 
     def __init__(self, groupedExpression: Expr|None = None) -> None:
         self.groupedExpression: Expr = groupedExpression or Expr()
+
+    def __repr__(self) -> str:
+        return f'({str(self.groupedExpression)})'
+    
+class GroupedCondition(ASTNode):
+    _children: ClassVar[tuple[str]] = ('groupedCondition',)
+
+    def __init__(self, groupedCondition: Condition|None = None) -> None:
+        self.groupedCondtion = groupedCondition or Condition()
+
+    def __repr__(self) -> str:
+        return f'{{{str(self.groupedCondtion)}}}'
+
         
 
 

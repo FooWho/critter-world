@@ -1,43 +1,62 @@
 from __future__ import annotations
 from typing import ClassVar, Iterable, Iterator, TYPE_CHECKING
-from schemas import Token, CritterParseError, TokenLexeme, TermTuple, FactorTuple, TOKENS, SET_RELOPS, SET_ADDOPS, SET_MULOPS, SET_SENSORS, SET_FACTOR_TERMINATORS, SET_FACTORS
+from schemas import Token, CritterParseError, TokenLexeme, TermTuple, FactorTuple, TOKENS, SET_RELOPS, SET_ADDOPS, SET_MULOPS, SET_SENSORS 
+from schemas import SET_FACTOR_INITIATOR, SET_FACTOR_TERMINATOR, SET_RULE_INITIATOR, SET_RULE_TERMINATOR, SET_CONDITION_INITIATOR, SET_CONDITION_TERMINATOR
+from schemas import SET_CONJUNCTION_INITIATOR, SET_CONJUNCTION_TERMINATOR, SET_RELATION_INITIATOR, SET_RELATION_TERMINATOR
 from abstractSyntaxTree import Program, Rule, Condition, Command, Conjunction, Relation, Expr, Term, Factor, Number, GroupedExpression
 
 class Parser():
     def __init__(self, tokens: Iterator[Token]) -> None:
         self.tokens: Iterator[Token] = tokens
-        self.current: Token = Token(TOKENS.T_NONE, '', 0, 0)
-        tmp = next(self.tokens, None)
-        if tmp:
-            self.current = tmp
+        self.current = next(self.tokens, Token(TOKENS.T_NONE, '', 0, 0))
+
 
     def getToken(self) -> Token:
-        token: Token = self.current
-        tmp = next(self.tokens, None)
-        if tmp:
-            self.current = tmp
+        token = self.current
+        self.current = next(self.tokens, Token(TOKENS.T_NONE, '', 0, 0))
+
         return token
     
     def peek(self) -> Token:
         return self.current
     
     def parseProgram(self) -> Program:
-        program: Program = Program()
+        program = Program()
 
         token = self.getToken()
 
-        while token.tokenType != TOKENS.T_NONE:
-            program.addRule(self.parseRule(token))
-            self.getToken()
+        while token.tokenType != TOKENS.T_EOF:
+
+            if token is self.peek():
+                token = self.getToken()
+
+            if token.tokenType not in SET_RULE_INITIATOR:
+                raise CritterParseError(f'Error on line {token.line} at position {token.column}: Expected RULE. Read: {token.tokenType}:"{token.lexeme}"')
+            
+            rule = self.parseRule(token)
+            program.addRule(rule)
+     
+            token = self.peek()
 
         return program
     
     def parseRule(self, token: Token) -> Rule:
-        condition: Condition
-        command: Command
+        rule = Rule()
+        condition = Condition()
 
-        condition = self.parseCondition(token)
-        command = self.parseCommand()
+        while token.tokenType != SET_RULE_TERMINATOR:
+
+            if token is self.peek():
+                token = self.getToken()
+
+            if token.tokenType not in SET_CONDITION_INITIATOR:
+                raise CritterParseError(f'Error on line {token.line} at position {token.column}: Expected CONDITION. Read: {token.tokenType}:"{token.lexeme}"')
+            
+            condition = self.parseCondition(token)
+
+
+
+        command = self.parseCommand(token)
 
         return Rule(condition, command)
     
@@ -46,13 +65,21 @@ class Parser():
         conjunctions: list[Conjunction] = []
         conjunction: Conjunction = Conjunction()
 
-        # A Condition may have a list of conjunctions, for now, we will assume 1 and fix later
-        conjunction = self.parseConjunction(token)
+        while token.tokenType not in SET_CONDITION_TERMINATOR:
+
+            if token is self.peek():
+                token = self.getToken()
+
+            if token.tokenType not in SET_CONJUNCTION_INITIATOR:
+                raise CritterParseError(f'Error on line {token.line} at position {token.column}: Expected CONJUNCTION. Read: {token.tokenType}:"{token.lexeme}"')   
+
+            conjunction = self.parseConjunction(token)
+            condition.addConjunction(conjunction)
 
         return condition
     
     
-    def parseCommand(self) -> Command:
+    def parseCommand(self, token: Token) -> Command:
         command: Command = Command()
 
         return command
@@ -61,52 +88,57 @@ class Parser():
         conjunction: Conjunction = Conjunction()
         relation: Relation = Relation()
 
-        # A Conjunction may have a list of relations,  for now assume one and fix later
-        relation = self.parseRelation(token)
-    
+        while token.tokenType not in SET_CONJUNCTION_TERMINATOR:
+            if token is self.peek():
+                token = self.getToken()
+
+            if token.tokenType not in SET_RELATION_INITIATOR:
+                raise CritterParseError(f'Error on line {token.line} at position {token.column}: Expected RELATION. Read: {token.tokenType}:"{token.lexeme}"') 
+
+            relation = self.parseRelation(token)
+            conjunction.addRelation(relation)
+
         return conjunction
     
     def parseRelation(self, token: Token) -> Relation:
         leftExpression: Expr
         relOp: TokenLexeme
         rightExpression: Expr
+        relation = Relation()
 
-        leftExpression = self.parseExpression(token)
-        token = self.getToken()
-        relOp = TokenLexeme(token.tokenType, token.lexeme)
-        token = self.getToken()
-        rightExpression = self.parseExpression(token)     
+        if token.tokenType == TOKENS.T_L_BRACE:
+            pass
+        else:
+            leftExpression = self.parseExpression(token)
+            token = self.getToken()
+            relOp = TokenLexeme(token.tokenType, token.lexeme)
+            token = self.getToken()
+            rightExpression = self.parseExpression(token)     
 
-        relation = Relation(leftExpression, rightExpression, relOp)
-        return Relation(leftExpression, rightExpression, relOp)
+            relation = Relation(leftExpression, relOp, rightExpression)
+        print(f'{relation}')
+        return relation
     
     def parseExpression(self, token: Token) -> Expr:
         expression: Expr = Expr()
 
         expression.setTerms(self.parseTerms(token))
-        print(f'{expression}')
         return expression
     
     def parseTerms(self, token: Token) -> list[TermTuple]:
         terms: list[TermTuple] = []
   
         while token.tokenType not in SET_RELOPS | {TOKENS.T_COMM, TOKENS.T_R_PAREN}:
-            if token == self.peek():
+            if token is self.peek():
                 token = self.getToken()
             addOp: TokenLexeme = TokenLexeme(TOKENS.T_NONE, '')
             if token.tokenType in {TOKENS.T_PLUS, TOKENS.T_MINUS}:
                 addOp = TokenLexeme(token.tokenType, token.lexeme)
-                tmpToken = self.getToken()
-                if tmpToken:
-                    token = tmpToken
+                token = self.getToken()
             factorTupleList = self.parseFactors(token)
             term = Term(factorTupleList)
             terms.append(TermTuple(addOp, term))
-            tmpToken = self.peek()
-            if tmpToken:
-                token = tmpToken
-            else:
-                raise CritterParseError('Error!')
+            token = self.peek()
         
         return terms
     
@@ -116,7 +148,7 @@ class Parser():
         mulOp: TokenLexeme = TokenLexeme(TOKENS.T_NONE, '')
         factors:list[FactorTuple] = []
 
-        while token.tokenType not in SET_FACTOR_TERMINATORS:
+        while token.tokenType not in SET_FACTOR_TERMINATOR:
             if token is self.peek():
                 # Our look-ahead says we are still here, advance the cursor
                 token = self.getToken()
@@ -125,7 +157,7 @@ class Parser():
                 # We are looking at a mulOp and this is not the first factor
                 mulOp = TokenLexeme(token.tokenType, token.lexeme)
                 token = self.getToken()
-            if token.tokenType not in SET_FACTORS:
+            if token.tokenType not in SET_FACTOR_INITIATOR:
                 raise CritterParseError(f'Error on line {token.line} at position {token.column}: Expected FACTOR. Read: {token.tokenType}:"{token.lexeme}"')
             # We should have a T_NUMBER, a T_MEM, a T_L_PAREN, a T_MINUS, or token ∈ {SET_SENSORS}
             match token.tokenType:
@@ -162,8 +194,8 @@ class Parser():
         token = self.getToken()
         expr = self.parseExpression(token)
         token = self.peek()
-        if token.tokenType != TOKENS.T_L_PAREN:
+        if token.tokenType != TOKENS.T_R_PAREN:
             raise CritterParseError(f'Error on line {token.line} at position {token.column}: Expected ")". Read: {token.tokenType}:"{token.lexeme}"')
-        
-        return GroupedExpression()
+        token = self.getToken()
+        return GroupedExpression(expr)
 

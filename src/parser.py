@@ -54,6 +54,8 @@ class Parser():
             
             condition = self.parseCondition(token)
 
+            token = self.peek()
+
 
 
         command = self.parseCommand(token)
@@ -76,6 +78,8 @@ class Parser():
             conjunction = self.parseConjunction(token)
             condition.addConjunction(conjunction)
 
+            token = self.peek()
+
         return condition
     
     
@@ -97,6 +101,8 @@ class Parser():
 
             relation = self.parseRelation(token)
             conjunction.addRelation(relation)
+
+            token = self.peek()
 
         return conjunction
     

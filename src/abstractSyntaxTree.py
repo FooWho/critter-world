@@ -57,6 +57,18 @@ class Condition(ASTNode):
         self.conjunctions = conjunctions
 
 class Command(ASTNode):
+    _children: ClassVar[tuple[str, str]] = ('updates', 'action')
+
+    def __init__(self, updates: list[Update]|None = None, action: Action|None = None) -> None:
+        self.updates = updates or []
+        self.action = action or Action()
+
+
+
+class Update(ASTNode):
+    pass
+
+class Action(ASTNode):
     pass
 
 class Conjunction(ASTNode):

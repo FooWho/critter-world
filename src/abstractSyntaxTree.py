@@ -60,16 +60,36 @@ class Command(ASTNode):
     _children: ClassVar[tuple[str, str]] = ('updates', 'action')
 
     def __init__(self, updates: list[Update]|None = None, action: Action|None = None) -> None:
-        self.updates = updates or []
+        self.updates:list[Update] = updates or []
         self.action = action or Action()
 
+    def addUpdate(self, update:Update) -> None:
+        self.updates.append(update)
+    
+    def setUpdates(self, updates: list[Update]) -> None:
+        self.updates = updates
+
+    def setAction(self, action:Action) -> None:
+        pass
 
 
+# An Update is mem[expr] := expr
+# We will call left side desitination and store the expression
+# We will call right side source and store the expresion
 class Update(ASTNode):
-    pass
+    _children: ClassVar[tuple[str, str]] = ('destination', 'source')
+
+    def __init__(self, destination: Expr|None = None, source:Expr|None = None) -> None:
+        self.destination = destination or Expr()
+        self.source = source or Expr()
+
 
 class Action(ASTNode):
-    pass
+    _children: ClassVar[tuple[str, str]] = ('actionToken', 'serveExpression')
+
+    def __init__(self, actionToken: TOKENS|None = None, serveExpression: Expr|None = None) -> None:
+        self.actionToken = actionToken or TOKENS.T_NONE
+        self.serveExpression = serveExpression or Expr()
 
 class Conjunction(ASTNode):
     _children: ClassVar[tuple[str]] = ('relations',)

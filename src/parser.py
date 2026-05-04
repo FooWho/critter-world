@@ -45,21 +45,16 @@ class Parser():
         condition = Condition()
         command = Command()
 
-        #while token.tokenType != SET_RULE_TERMINATOR:
-
-        #    if token is self.peek():
-        #        token = self.getToken()
-
-        #    if token.tokenType not in SET_CONDITION_INITIATOR:
-        #        raise CritterParseError(f'Error on line {token.line} at position {token.column}: Expected CONDITION. Read: {token.tokenType}:"{token.lexeme}"')
-            
+        if token.tokenType not in SET_CONDITION_INITIATOR:
+            raise CritterParseError(f'Error on line {token.line} at position {token.column}: Expected CONDITION. Read: {token.tokenType}:"{token.lexeme}"')
+        
         condition = self.parseCondition(token)
+
         token = self.getToken()
         if token.tokenType != TOKENS.T_COMM:
             raise CritterParseError(f'Error on line {token.line} at position {token.column}: Expected "-->". Read: {token.tokenType}:"{token.lexeme}"')
+        
         command = self.parseCommand(token)
-
-        #    token = self.peek()
 
         return Rule(condition, command)
     

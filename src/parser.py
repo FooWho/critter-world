@@ -43,6 +43,7 @@ class Parser():
     def parseRule(self, token: Token) -> Rule:
         rule = Rule()
         condition = Condition()
+        command = Command()
 
         while token.tokenType != SET_RULE_TERMINATOR:
 
@@ -53,12 +54,9 @@ class Parser():
                 raise CritterParseError(f'Error on line {token.line} at position {token.column}: Expected CONDITION. Read: {token.tokenType}:"{token.lexeme}"')
             
             condition = self.parseCondition(token)
+            command = self.parseCommand(token)
 
             token = self.peek()
-
-
-
-        command = self.parseCommand(token)
 
         return Rule(condition, command)
     

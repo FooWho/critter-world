@@ -1,6 +1,6 @@
 from __future__ import annotations
 from typing import ClassVar, Iterator, TYPE_CHECKING
-from schemas import TokenLexeme, TOKENS, T_NONE
+from schemas import TokenLexeme, Token, TOKENS, T_NONE
 
 class AbstractSyntaxTree():
 
@@ -23,28 +23,37 @@ class ASTNode():
                 yield value
 
 class Program(ASTNode):
-    _children = ('tofob',)
+    _children = ('obj',)
 
-    def __init__(self, tofob: Term|Factor|BinaryOperator|None = None) -> None:
-        self.tofob = tofob or Factor()
+    def __init__(self, obj: Term|Factor|BinaryOperator|Number|None = None) -> None:
+        self.obj:list[Term|Factor|BinaryOperator|Number] = []
+        if obj:
+            self.obj.append(obj)
+
+    def addObj(self, obj: Term|Factor|BinaryOperator|Number) -> None:
+        self.obj.append(obj)
         
-
-    """
-    def addNumber(self, number: Number) -> None:
-        self.numbers.append(number)
-    """
-
-    def addTermOrFactorOrBinary(self, tofob: Term|Factor|BinaryOperator) -> None:
-        self.tofob = tofob
 
 class MemNode(ASTNode):
     _children = ('expression',)
 
     def __init__(self, expression: Expression|None = None) -> None:
-        self.expression = Expression or Expression()
+        self.expression = expression or Expression()
+
+    def __str__(self)-> str:
+        return f'mem[{str(self.expression)}]'
 
 class Expression(ASTNode):
-   pass
+    _children = ('expression',)
+
+    def __init__(self, expression: Term|BinaryOperator|None = None) -> None:
+       self.expression = expression or Term()
+
+    def __str__(self) -> str:
+       return str(self.expression)
+    
+    def setExpression(self, expression: Expression|BinaryOperator) -> None:
+        self.expression = expression
 
 class BinaryOperator(ASTNode):
     _children = ('leftSide', 'operator', 'rightSide')
@@ -82,10 +91,25 @@ class Factor(ASTNode):
     _children = ('factor',)
 
     def __init__(self, factor: Number|MemNode|None = None) -> None:
-        self.factor = factor or Number(T_NONE)
+        self.factor = factor or Number()
+        self.factorType: TOKENS
+        match self.factor:
+            case Number():
+                self.factorType = TOKENS.T_NUMBER
+            case MemNode():
+                self.factorType = TOKENS.T_MEM
+            case _:
+                raise ValueError(f'Error: Received unexpected type for Factor: {str(type(self.factor))}')
     
     def setFactor(self, factor: Number|MemNode) -> None:
         self.factor = factor
+        match self.factor:
+            case Number():
+                self.factorType = TOKENS.T_NUMBER
+            case MemNode():
+                self.factorType = TOKENS.T_MEM
+            case _:
+                raise ValueError(f'Error: Received unexpected type for Factor: {str(type(self.factor))}')
 
     def __str__(self) -> str:
         return str(self.factor)
@@ -93,8 +117,11 @@ class Factor(ASTNode):
 class Number(ASTNode):
     _children = ('number',)
 
-    def __init__(self, number: TokenLexeme|None = None) -> None:
-        self.number = number or T_NONE
+    def __init__(self, number: Token|None = None) -> None:
+        if number:
+            self.number = TokenLexeme(number.tokenType, number.lexeme)
+        else:
+            self.number = T_NONE
 
     def __str__(self) -> str:
         return self.number.lexeme

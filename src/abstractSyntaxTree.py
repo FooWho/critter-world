@@ -37,6 +37,14 @@ class Program(ASTNode):
     def addTermOrFactorOrBinary(self, tofob: Term|Factor|BinaryOperator) -> None:
         self.tofob = tofob
 
+class MemNode(ASTNode):
+    _children = ('expression',)
+
+    def __init__(self, expression: Expression|None = None) -> None:
+        self.expression = Expression or Expression()
+
+class Expression(ASTNode):
+   pass
 
 class BinaryOperator(ASTNode):
     _children = ('leftSide', 'operator', 'rightSide')
@@ -73,10 +81,10 @@ class Term(ASTNode):
 class Factor(ASTNode):
     _children = ('factor',)
 
-    def __init__(self, factor: Number|None = None) -> None:
+    def __init__(self, factor: Number|MemNode|None = None) -> None:
         self.factor = factor or Number(T_NONE)
     
-    def setFactor(self, factor: Number) -> None:
+    def setFactor(self, factor: Number|MemNode) -> None:
         self.factor = factor
 
     def __str__(self) -> str:

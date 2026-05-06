@@ -3,7 +3,7 @@ from enum import StrEnum
 from typing import NamedTuple, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from abstractSyntaxTree import Condition, Command, Term, Expr, Factor, Number, GroupedExpression
+    from abstractSyntaxTree import Term, Factor, Number
 
 class TOKENS(StrEnum):
     T_MEMSIZE = r'MEMSIZE|mem\[0\]' 
@@ -70,14 +70,6 @@ class TokenLexeme(NamedTuple):
 class CritterParseError(Exception):
     pass
 
-class FactorTuple(NamedTuple):
-    mulOp: TokenLexeme
-    factor: Number|GroupedExpression
-
-class TermTuple(NamedTuple):
-    addOp: TokenLexeme
-    term: Term
-
 SET_RELOPS = {TOKENS.T_LESS, TOKENS.T_LEQU, TOKENS.T_LESS, TOKENS.T_EQU, TOKENS.T_NEQU, TOKENS.T_GREAT, TOKENS.T_GEQU}
 SET_ADDOPS = {TOKENS.T_PLUS, TOKENS.T_MINUS}
 SET_MULOPS = {TOKENS.T_STAR, TOKENS.T_DIV}
@@ -100,6 +92,9 @@ SET_TERM_TERMINATOR = SET_RELOPS | {TOKENS.T_COMM, TOKENS.T_R_PAREN}
 
 SET_FACTOR_INITIATOR = SET_SENSORS | {TOKENS.T_NUMBER, TOKENS.T_MEM, TOKENS.T_L_PAREN, TOKENS.T_MINUS}
 SET_FACTOR_TERMINATOR = SET_ADDOPS | SET_RELOPS | {TOKENS.T_SEMICOLON, TOKENS.T_COMMENT, TOKENS.T_COMM, TOKENS.T_R_PAREN}
+
+T_NONE = TokenLexeme(TOKENS.T_NONE, '')
+
 
 
 

@@ -75,6 +75,22 @@ class BinaryOperator(ASTNode):
     def setRight(self, rightSide: Term|Factor|BinaryOperator) -> None:
         self.rightSide = rightSide
 
+class UnaryOperator(ASTNode):
+    _children = ('operator', 'operand')
+
+    def __init__(self, operator: TokenLexeme|None = None, operand: Factor|None = None) -> None:
+        self.operator = operator or T_NONE
+        self.operand = operand or Factor()
+
+    def __str__(self) -> str:
+        return '-' + str(self.operand)
+    
+    def setOperator(self, operator: TokenLexeme) -> None:
+        self.operator = operator
+
+    def setOperand(self, operand: Factor) ->None:
+        self.operand = operand
+
 class Term(ASTNode):
     _children = ('term',)
 
@@ -90,7 +106,7 @@ class Term(ASTNode):
 class Factor(ASTNode):
     _children = ('factor',)
 
-    def __init__(self, factor: Number|MemNode|None = None) -> None:
+    def __init__(self, factor: Number|MemNode|UnaryOperator|None = None) -> None:
         self.factor = factor or Number()
         self.factorType: TOKENS
         match self.factor:
@@ -98,16 +114,20 @@ class Factor(ASTNode):
                 self.factorType = TOKENS.T_NUMBER
             case MemNode():
                 self.factorType = TOKENS.T_MEM
+            case UnaryOperator():
+                self.factorType = TOKENS.T_MINUS
             case _:
                 raise ValueError(f'Error: Received unexpected type for Factor: {str(type(self.factor))}')
     
-    def setFactor(self, factor: Number|MemNode) -> None:
+    def setFactor(self, factor: Number|MemNode|UnaryOperator) -> None:
         self.factor = factor
         match self.factor:
             case Number():
                 self.factorType = TOKENS.T_NUMBER
             case MemNode():
                 self.factorType = TOKENS.T_MEM
+            case UnaryOperator():
+                self.factorType = TOKENS.T_MINUS
             case _:
                 raise ValueError(f'Error: Received unexpected type for Factor: {str(type(self.factor))}')
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import Iterator
 from schemas import Token, TokenLexeme, TOKENS, CritterParseError, SET_MULOPS, SET_ADDOPS, T_NONE
 from schemas import SET_FACTOR_INITIATOR
-from abstractSyntaxTree import AbstractSyntaxTree, Program, MemNode, Expression, BinaryOperator, Term, Factor, Number
+from abstractSyntaxTree import AbstractSyntaxTree, Program, MemNode, Expression, BinaryOperator, UnaryOperator, Term, Factor, Number
 
 class Parser():
 
@@ -71,6 +71,14 @@ class Parser():
             case TOKENS.T_MEM:
                 memNode = self.parseMemNode()
                 return Factor(memNode)
+            case TOKENS.T_MINUS:
+                op = self.getToken()
+                unOp = UnaryOperator()
+                unOp.setOperator(TokenLexeme(op.tokenType, op.lexeme))
+                unOp.setOperand(self.parseFactor())
+                return Factor(unOp)
+            case TOKENS.T_L_PAREN:
+                pass
             case TOKENS.T_NUMBER:
                 number = self.parseNumber()
                 return Factor(number)

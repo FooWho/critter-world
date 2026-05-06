@@ -49,25 +49,22 @@ class Parser():
             token = self.peek()
         return term
     
-    def parseMemNode(self) -> MemNode:
+    def parseMemNode(self, token: Token|None = None) -> MemNode:
         token = self.peek()
         if token.tokenType is not TOKENS.T_MEM:
-            raise CritterParseError(f'Error: Expected "mem" but saw "{token.lexeme}".')
-        
+            raise CritterParseError(f'Error at line: {token.line} column: {token.column} - Expected "mem" but saw "{token.lexeme}".')
         token = self.getToken()
-        
-        token = self.peek()
+        token = self.getToken()
         if token.tokenType is not TOKENS.T_L_BRACKET:
-            raise CritterParseError(f'Error: Expected "[" but saw "{token.lexeme}".')
-        token = self.getToken()
+            raise CritterParseError(f'Error at line: {token.line} column: {token.column} - Expected "[]" but saw "{token.lexeme}".')
         expression = self.parseExpression()
-        token = self.peek()
-        if token.tokenType is not TOKENS.T_R_BRACKET:
-            raise CritterParseError(f'Error: Expected "]" but saw "{token.lexeme}".')
         token = self.getToken()
+        if token.tokenType is not TOKENS.T_R_BRACKET:
+            raise CritterParseError(f'Error at line: {token.line} column: {token.column} - Expected "]" but saw "{token.lexeme}".')
         return MemNode(expression)
+    
 
-    def parseFactor(self) -> Factor:
+    def parseFactor(self, token: Token|None = None) -> Factor:
         token = self.peek()
 
         match token.tokenType:
@@ -78,25 +75,15 @@ class Parser():
                 number = self.parseNumber()
                 return Factor(number)
             case _:
-                raise CritterParseError(f'Error: Expected FACTOR but saw "{token.lexeme}".')
+                raise CritterParseError(f'Error at line: {token.line} column: {token.column} - Expected <Number> but saw {token.lexeme}')
     
-    def checkFactor(self) -> bool:
-        token = self.peek()
-        if token.tokenType not in SET_FACTOR_INITIATOR:
-            return False
-        return True
     
     def parseNumber(self) -> Number:
-        if not (token := self.checkNumber()):
-            raise CritterParseError(f'Error at line: {self.peek().line} column: {self.peek().column} - Expected <Number> but saw {self.peek().lexeme}')
-            
+        token = self.getToken()
+        if token.tokenType is not TOKENS.T_NUMBER:
+            raise CritterParseError(f'Error at line: {token.line} column: {token.column} - Expected <Number> but saw {token.lexeme}') 
         return Number(token)
     
-    def checkNumber(self) -> Token|None:
-        token = self.peek()
-        if token.tokenType is not TOKENS.T_NUMBER:
-            return None
-        return self.getToken()
     
             
 

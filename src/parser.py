@@ -1,8 +1,8 @@
 from __future__ import annotations
 from typing import Iterator
 from schemas import Token, TokenLexeme, TOKENS, CritterParseError, SET_MULOPS, SET_ADDOPS, T_NONE
-from schemas import SET_FACTOR_INITIATOR, SET_SUGAR, SET_SENSORS
-from abstractSyntaxTree import AbstractSyntaxTree, Program, MemNode, SensorNode, Expression, BinaryOperator, UnaryOperator, Term, Factor, Number
+from schemas import SET_FACTOR_INITIATOR, SET_SUGAR, SET_SENSORS, SET_RELOPS
+from abstractSyntaxTree import AbstractSyntaxTree, Program, MemNode, SensorNode, Expression, RelationalOperator, BinaryOperator, UnaryOperator, Term, Factor, Number
 
 class Parser():
 
@@ -23,7 +23,7 @@ class Parser():
 
         token = self.peek()
         while token.tokenType is not TOKENS.T_EOF:
-            obj = self.parseExpression()
+            obj = self.parseRelationalOperator()
             program.addObj(obj)
             token = self.peek()
 
@@ -42,6 +42,23 @@ class Parser():
             expression.expression = binOp
             token = self.peek()       
         return expression
+    
+    def parseRelationalOperator(self) -> RelationalOperator:
+        expression = Expression(self.parseTerm())
+        token = self.peek()
+        if token.tokenType not in SET_RELOPS:
+            raise CritterParseError(f'Error at line: {token.line} column: {token.column} - Expected <RelationalOperator> but saw "{token.lexeme}".')
+        op = self.getToken()
+        relOp = RelationalOperator()
+        relOp.setLeft(expression)
+        relOp.setOperator(TokenLexeme(op.tokenType, op.lexeme))
+        relOp.setRight(self.parseExpression())
+        return relOp
+                          
+
+
+    
+
     
     def parseTerm(self) -> Term|BinaryOperator:
         term = Term(self.parseFactor())
@@ -119,7 +136,7 @@ class Parser():
                 inner = self.parseExpression()
                 paren = self.getToken()
                 if paren.tokenType is not TOKENS.T_R_PAREN:
-                    raise CritterParseError(f'Error at line: {token.line} column: {token.column} - Expected ")" but saw {token.lexeme}')
+                    raise CritterParseError(f'Error at line: {paren.line} column: {paren.column} - Expected ")" but saw {paren.tokenType.name}:"{paren.lexeme}"')
                 return Factor(inner)
             case TOKENS.T_NUMBER:
                 number = self.parseNumber()

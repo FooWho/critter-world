@@ -25,12 +25,12 @@ class ASTNode():
 class Program(ASTNode):
     _children = ('obj',)
 
-    def __init__(self, obj: Term|Factor|BinaryOperator|Number|Expression|None = None) -> None:
-        self.obj:list[Term|Factor|BinaryOperator|Number|Expression] = []
+    def __init__(self, obj: Term|Factor|BinaryOperator|Number|Expression|RelationalOperator|None = None) -> None:
+        self.obj:list[Term|Factor|BinaryOperator|Number|Expression|RelationalOperator] = []
         if obj:
             self.obj.append(obj)
 
-    def addObj(self, obj: Term|Factor|BinaryOperator|Number|Expression) -> None:
+    def addObj(self, obj: Term|Factor|BinaryOperator|Number|Expression|RelationalOperator) -> None:
         self.obj.append(obj)
 
 class SensorNode(ASTNode):
@@ -123,6 +123,26 @@ class BinaryOperator(ASTNode):
     def setRight(self, rightSide: Term|Factor|BinaryOperator) -> None:
         self.rightSide = rightSide
 
+class RelationalOperator(ASTNode):
+    _children = ('leftSide', 'operator', 'rightSide')
+
+    def __init__(self, leftSide: Expression|None = None, operator: TokenLexeme|None = None, rightSide: Expression|None = None) -> None:
+        self.leftSide = leftSide or Expression()
+        self.operator = operator or T_NONE
+        self.rightSide = rightSide or Expression()
+
+    def __str__(self) -> str:
+        return str(self.leftSide) + ' ' + self.operator.lexeme + ' ' + str(self.rightSide)
+    
+    def setLeft(self, leftSide: Expression) -> None:
+        self.leftSide = leftSide
+
+    def setOperator(self, operator: TokenLexeme) -> None:
+        self.operator = operator
+
+    def setRight(self, rightSide: Expression) -> None:
+        self.rightSide = rightSide
+
 class UnaryOperator(ASTNode):
     _children = ('operator', 'operand')
 
@@ -186,7 +206,10 @@ class Factor(ASTNode):
                 raise ValueError(f'Error: Received unexpected type for Factor: {str(type(self.factor))}')
 
     def __str__(self) -> str:
-        return str(self.factor)
+        if self.factorType is TOKENS.T_L_PAREN:
+            return '('+ str(self.factor) + ')'
+        else:
+            return str(self.factor)
     
 class Number(ASTNode):
     _children = ('number',)

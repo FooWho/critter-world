@@ -25,8 +25,8 @@ class ASTNode():
 class Program(ASTNode):
     _children = ('obj',)
 
-    def __init__(self, obj: Term|Factor|BinaryOperator|Number|None = None) -> None:
-        self.obj:list[Term|Factor|BinaryOperator|Number] = []
+    def __init__(self, obj: Term|Factor|BinaryOperator|Number|Expression|None = None) -> None:
+        self.obj:list[Term|Factor|BinaryOperator|Number|Expression] = []
         if obj:
             self.obj.append(obj)
 

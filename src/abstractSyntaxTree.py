@@ -52,7 +52,7 @@ class Expression(ASTNode):
     def __str__(self) -> str:
        return str(self.expression)
     
-    def setExpression(self, expression: Expression|BinaryOperator) -> None:
+    def setExpression(self, expression: Term|BinaryOperator) -> None:
         self.expression = expression
 
 class BinaryOperator(ASTNode):
@@ -106,7 +106,7 @@ class Term(ASTNode):
 class Factor(ASTNode):
     _children = ('factor',)
 
-    def __init__(self, factor: Number|MemNode|UnaryOperator|None = None) -> None:
+    def __init__(self, factor: Number|MemNode|UnaryOperator|Expression|None = None) -> None:
         self.factor = factor or Number()
         self.factorType: TOKENS
         match self.factor:
@@ -116,10 +116,12 @@ class Factor(ASTNode):
                 self.factorType = TOKENS.T_MEM
             case UnaryOperator():
                 self.factorType = TOKENS.T_MINUS
+            case Expression():
+                self.factorType = TOKENS.T_L_PAREN
             case _:
                 raise ValueError(f'Error: Received unexpected type for Factor: {str(type(self.factor))}')
     
-    def setFactor(self, factor: Number|MemNode|UnaryOperator) -> None:
+    def setFactor(self, factor: Number|MemNode|UnaryOperator|Expression) -> None:
         self.factor = factor
         match self.factor:
             case Number():
@@ -128,6 +130,8 @@ class Factor(ASTNode):
                 self.factorType = TOKENS.T_MEM
             case UnaryOperator():
                 self.factorType = TOKENS.T_MINUS
+            case Expression():
+                self.factorType = TOKENS.T_L_PAREN
             case _:
                 raise ValueError(f'Error: Received unexpected type for Factor: {str(type(self.factor))}')
 

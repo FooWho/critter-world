@@ -49,7 +49,7 @@ class Parser():
             token = self.peek()
         return term
     
-    def parseMemNode(self, token: Token|None = None) -> MemNode:
+    def parseMemNode(self) -> MemNode:
         token = self.peek()
         if token.tokenType is not TOKENS.T_MEM:
             raise CritterParseError(f'Error at line: {token.line} column: {token.column} - Expected "mem" but saw "{token.lexeme}".')
@@ -64,7 +64,7 @@ class Parser():
         return MemNode(expression)
     
 
-    def parseFactor(self, token: Token|None = None) -> Factor:
+    def parseFactor(self) -> Factor:
         token = self.peek()
 
         match token.tokenType:
@@ -78,12 +78,17 @@ class Parser():
                 unOp.setOperand(self.parseFactor())
                 return Factor(unOp)
             case TOKENS.T_L_PAREN:
-                pass
+                paren = self.getToken()
+                inner = self.parseExpression()
+                paren = self.getToken()
+                if paren.tokenType is not TOKENS.T_R_PAREN:
+                    raise CritterParseError(f'Error at line: {token.line} column: {token.column} - Expected ")" but saw {token.lexeme}')
+                return Factor(inner)
             case TOKENS.T_NUMBER:
                 number = self.parseNumber()
                 return Factor(number)
             case _:
-                raise CritterParseError(f'Error at line: {token.line} column: {token.column} - Expected <Number> but saw {token.lexeme}')
+                raise CritterParseError(f'Error at line: {token.line} column: {token.column} - Expected <Factor> but saw {token.lexeme}')
     
     
     def parseNumber(self) -> Number:

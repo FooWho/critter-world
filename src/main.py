@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 
 def main():
     lexer = Lexer()
-    tokens = lexer.tokenize('ahead[2]')
+    tokens = lexer.tokenize('ahead[2 * mem[2 * (2 + 3)]] + mem[3]')
     parser = Parser(tokens)
     ast = parser.parse()
     for child in ast.getRoot():

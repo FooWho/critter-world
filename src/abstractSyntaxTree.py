@@ -30,17 +30,31 @@ class Program(ASTNode):
         if obj:
             self.obj.append(obj)
 
-    def addObj(self, obj: Term|Factor|BinaryOperator|Number) -> None:
+    def addObj(self, obj: Term|Factor|BinaryOperator|Number|Expression) -> None:
         self.obj.append(obj)
 
-class Sensor(ASTNode):
+class SensorNode(ASTNode):
     _children = ('sensor',)
 
     def __init__(self, sensorType: Token|None = None, expression: Expression|None = None) -> None:
         self.expression = expression or Expression()
-        sensorType = sensorType or Token(TOKENS.T_NONE, '', 0, 0)
-        self.sensorType = next((item.name for item in SET_SENSORS if item.name is (sensorType.tokenType.name)), None)
-        
+        if sensorType:
+            self.sensorType = sensorType.tokenType
+        else:
+            self.sensorType = TOKENS.T_NONE
+
+    def __str__(self) -> str:
+        match self.sensorType:
+            case TOKENS.T_AHEAD:
+                return f'ahead[{str(self.expression)}]'
+            case TOKENS.T_NEARBY:
+                return f'nearby[{str(self.expression)}]'
+            case TOKENS.T_RANDOM:
+                return f'random[{str(self.expression)}]'
+            case TOKENS.T_SMELL:
+                return 'smell'
+            case _:
+                raise 
 
 class MemNode(ASTNode):
     _children = ('expression',)
@@ -140,7 +154,7 @@ class Term(ASTNode):
 class Factor(ASTNode):
     _children = ('factor',)
 
-    def __init__(self, factor: Number|MemNode|UnaryOperator|Expression|None = None) -> None:
+    def __init__(self, factor: Number|MemNode|UnaryOperator|Expression|SensorNode|None = None) -> None:
         self.factor = factor or Number()
         self.factorType: TOKENS
         match self.factor:
@@ -148,6 +162,8 @@ class Factor(ASTNode):
                 self.factorType = TOKENS.T_NUMBER
             case MemNode():
                 self.factorType = TOKENS.T_MEM
+            case SensorNode():
+                self.factorType = self.factor.sensorType
             case UnaryOperator():
                 self.factorType = TOKENS.T_MINUS
             case Expression():

@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import Iterator
 from schemas import Token, TokenLexeme, TOKENS, CritterParseError, SET_MULOPS, SET_ADDOPS, T_NONE
 from schemas import SET_FACTOR_INITIATOR, SET_SUGAR, SET_SENSORS
-from abstractSyntaxTree import AbstractSyntaxTree, Program, MemNode, Expression, BinaryOperator, UnaryOperator, Term, Factor, Number
+from abstractSyntaxTree import AbstractSyntaxTree, Program, MemNode, SensorNode, Expression, BinaryOperator, UnaryOperator, Term, Factor, Number
 
 class Parser():
 
@@ -23,7 +23,7 @@ class Parser():
 
         token = self.peek()
         while token.tokenType is not TOKENS.T_EOF:
-            obj = self.parseFactor()
+            obj = self.parseExpression()
             program.addObj(obj)
             token = self.peek()
 
@@ -65,13 +65,35 @@ class Parser():
         token = self.getToken()
         token = self.getToken()
         if token.tokenType is not TOKENS.T_L_BRACKET:
-            raise CritterParseError(f'Error at line: {token.line} column: {token.column} - Expected "[]" but saw "{token.lexeme}".')
+            raise CritterParseError(f'Error at line: {token.line} column: {token.column} - Expected "[" but saw "{token.lexeme}".')
         expression = self.parseExpression()
         token = self.getToken()
         if token.tokenType is not TOKENS.T_R_BRACKET:
             raise CritterParseError(f'Error at line: {token.line} column: {token.column} - Expected "]" but saw "{token.lexeme}".')
         return MemNode(expression)
     
+    def parseSensor(self) -> SensorNode:
+        token = self.peek()
+        match token.tokenType:
+            case TOKENS.T_AHEAD | TOKENS.T_NEARBY | TOKENS.T_RANDOM:
+                token = self.getToken()
+                sensorType = token
+                token = self.getToken()
+                if token.tokenType is not TOKENS.T_L_BRACKET:
+                    raise CritterParseError(f'Error at line: {token.line} column: {token.column} - Expected "[" but saw "{token.lexeme}".')
+                expression = self.parseExpression()
+                token = self.getToken()
+                if token.tokenType is not TOKENS.T_R_BRACKET:
+                    raise CritterParseError(f'Error at line: {token.line} column: {token.column} - Expected "]" but saw "{token.lexeme}".')
+                sensorNode = SensorNode(sensorType, expression)
+            case TOKENS.T_SMELL:
+                token = self.getToken()
+                sensorType = token
+                sensorNode = SensorNode(sensorType)
+            case _:
+                raise CritterParseError(f'Error at line: {token.line} column: {token.column} - Expected <SENSOR> but saw "{token.lexeme}".')
+        return sensorNode
+
 
     def parseFactor(self) -> Factor:
         token = self.peek()
@@ -83,8 +105,9 @@ class Parser():
                 token = self.getToken()
                 memNode = MemNode.desugar(token)
                 return Factor(memNode)
-            case sensor if sensor in SET_SENSORS:
-                pass
+            case sensor if sensor.name in [sensor.name for sensor in SET_SENSORS]: 
+                sensor = self.parseSensor()
+                return Factor(sensor)
             case TOKENS.T_MINUS:
                 op = self.getToken()
                 unOp = UnaryOperator()

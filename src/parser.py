@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import Iterator
 from schemas import Token, TokenLexeme, TOKENS, CritterParseError, SET_MULOPS, SET_ADDOPS, T_NONE
-from schemas import SET_FACTOR_INITIATOR, SET_SUGAR
+from schemas import SET_FACTOR_INITIATOR, SET_SUGAR, SET_SENSORS
 from abstractSyntaxTree import AbstractSyntaxTree, Program, MemNode, Expression, BinaryOperator, UnaryOperator, Term, Factor, Number
 
 class Parser():
@@ -83,7 +83,8 @@ class Parser():
                 token = self.getToken()
                 memNode = MemNode.desugar(token)
                 return Factor(memNode)
-            case [item.name for item in SET_SENSORS if item.name is (TOKENS.T_AHEAD)]
+            case sensor if sensor in SET_SENSORS:
+                pass
             case TOKENS.T_MINUS:
                 op = self.getToken()
                 unOp = UnaryOperator()

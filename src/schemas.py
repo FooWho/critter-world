@@ -6,13 +6,13 @@ if TYPE_CHECKING:
     from abstractSyntaxTree import Term, Factor, Number
 
 class TOKENS(StrEnum):
-    T_MEMSIZE = r'MEMSIZE' 
-    T_DEFENSE = r'DEFENSE'
-    T_OFFENSE = r'OFFENSE'
-    T_SIZE = r'SIZE'
-    T_ENERGY = r'ENERGY'
-    T_PASS = r'PASS'
-    T_POSTURE = r'POSTURE'
+    T_MEMSIZE = r'\bMEMSIZE\b' 
+    T_DEFENSE = r'\bDEFENSE\b'
+    T_OFFENSE = r'\bOFFENSE\b'
+    T_SIZE = r'\bSIZE\b'
+    T_ENERGY = r'\bENERGY\b'
+    T_PASS = r'\bPASS'
+    T_POSTURE = r'\bPOSTURE\b'
     T_COMMENT = r'//.*'
     T_COMM = r'-->'
     T_ASSIGN = r':='

@@ -55,10 +55,6 @@ class Parser():
         relOp.setRight(self.parseExpression())
         return relOp
                           
-
-
-    
-
     
     def parseTerm(self) -> Term|BinaryOperator:
         term = Term(self.parseFactor())

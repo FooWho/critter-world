@@ -1,6 +1,6 @@
 from __future__ import annotations
 from typing import ClassVar, Iterator, TYPE_CHECKING
-from schemas import TokenLexeme, Token, TOKENS, T_NONE
+from schemas import TokenLexeme, Token, TOKENS, T_NONE, SET_SENSORS
 
 class AbstractSyntaxTree():
 
@@ -32,6 +32,14 @@ class Program(ASTNode):
 
     def addObj(self, obj: Term|Factor|BinaryOperator|Number) -> None:
         self.obj.append(obj)
+
+class Sensor(ASTNode):
+    _children = ('sensor',)
+
+    def __init__(self, sensorType: Token|None = None, expression: Expression|None = None) -> None:
+        self.expression = expression or Expression()
+        sensorType = sensorType or Token(TOKENS.T_NONE, '', 0, 0)
+        self.sensorType = next((item.name for item in SET_SENSORS if item.name is (sensorType.tokenType.name)), None)
         
 
 class MemNode(ASTNode):
@@ -42,6 +50,32 @@ class MemNode(ASTNode):
 
     def __str__(self)-> str:
         return f'mem[{str(self.expression)}]'
+    
+    @staticmethod
+    def desugar(token: Token) -> MemNode:
+        match token.tokenType:
+            case TOKENS.T_MEMSIZE:
+                number = Number(Token(TOKENS.T_NUMBER, '0', token.line, token.column))
+            case TOKENS.T_DEFENSE:
+                number = Number(Token(TOKENS.T_NUMBER, '1', token.line, token.column))
+            case TOKENS.T_OFFENSE:
+                number = Number(Token(TOKENS.T_NUMBER, '2', token.line, token.column))
+            case TOKENS.T_SIZE:
+                number = Number(Token(TOKENS.T_NUMBER, '3', token.line, token.column))
+            case TOKENS.T_ENERGY:
+                number = Number(Token(TOKENS.T_NUMBER, '4', token.line, token.column))
+            case TOKENS.T_PASS:
+                number = Number(Token(TOKENS.T_NUMBER, '5', token.line, token.column))
+            case TOKENS.T_POSTURE:
+                number = Number(Token(TOKENS.T_NUMBER, '6', token.line, token.column))
+            case _:
+                raise ValueError(f'Error - Method desugar(token) called with invalid token: {token}')
+        factor = Factor(number)
+        term = Term(factor)
+        expression = Expression(term)
+        memNode = MemNode(expression)
+        return memNode
+            
 
 class Expression(ASTNode):
     _children = ('expression',)

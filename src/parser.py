@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import Iterator
 from schemas import Token, TokenLexeme, TOKENS, CritterParseError, SET_MULOPS, SET_ADDOPS, T_NONE
-from schemas import SET_FACTOR_INITIATOR
+from schemas import SET_FACTOR_INITIATOR, SET_SUGAR
 from abstractSyntaxTree import AbstractSyntaxTree, Program, MemNode, Expression, BinaryOperator, UnaryOperator, Term, Factor, Number
 
 class Parser():
@@ -23,7 +23,7 @@ class Parser():
 
         token = self.peek()
         while token.tokenType is not TOKENS.T_EOF:
-            obj = self.parseTerm()
+            obj = self.parseFactor()
             program.addObj(obj)
             token = self.peek()
 
@@ -32,8 +32,15 @@ class Parser():
     
     def parseExpression(self) -> Expression:
         expression = Expression(self.parseTerm())
-        
-
+        token = self.peek()
+        while token.tokenType in SET_ADDOPS:
+            op = self.getToken()
+            binOp = BinaryOperator()
+            binOp.setLeft(expression.expression)
+            binOp.setOperator(TokenLexeme(op.tokenType, op.lexeme))
+            binOp.setRight(self.parseTerm())
+            expression.expression = binOp
+            token = self.peek()       
         return expression
     
     def parseTerm(self) -> Term|BinaryOperator:
@@ -48,6 +55,8 @@ class Parser():
             term = binOp
             token = self.peek()
         return term
+    
+
     
     def parseMemNode(self) -> MemNode:
         token = self.peek()
@@ -66,11 +75,15 @@ class Parser():
 
     def parseFactor(self) -> Factor:
         token = self.peek()
-
         match token.tokenType:
             case TOKENS.T_MEM:
                 memNode = self.parseMemNode()
                 return Factor(memNode)
+            case sugar if sugar in SET_SUGAR:
+                token = self.getToken()
+                memNode = MemNode.desugar(token)
+                return Factor(memNode)
+            case [item.name for item in SET_SENSORS if item.name is (TOKENS.T_AHEAD)]
             case TOKENS.T_MINUS:
                 op = self.getToken()
                 unOp = UnaryOperator()

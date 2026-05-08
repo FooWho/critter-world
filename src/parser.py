@@ -3,8 +3,8 @@ from typing import Iterator
 from schemas import Token, TokenLexeme, TOKENS, CritterParseError, SET_MULOPS, SET_ADDOPS, SET_FACTOR_INITIATOR
 from schemas import SET_SUGAR, SET_SENSORS, SET_RELOPS
 from abstractSyntaxTree import (AbstractSyntaxTree, Program, MemNode, SensorNode, Expression, LogicalOperator, 
-                                RelationalOperator, BinaryOperator, UnaryOperator, Term, Factor, Number, Condition,
-                                Conjunction)
+                                RelationalOperator, BinaryOperator, UnaryOperator, Term, Factor, Number, Condition)
+
 
 class Parser():
 
@@ -33,10 +33,6 @@ class Parser():
         return parseTree
     
     def parseCondition(self) -> Condition:
-        brace = self.peek()
-        needsBrace = brace.tokenType is TOKENS.T_L_BRACE
-        if needsBrace:
-            brace = self.getToken()
         conjunction = self.parseConjunction()
 
         token = self.peek()
@@ -48,31 +44,42 @@ class Parser():
             logOp.setRight(self.parseConjunction())
             conjunction = logOp
             token = self.peek()
-        if needsBrace:
-            brace = self.getToken()
-            if brace.tokenType is not TOKENS.T_R_BRACE:
-                raise CritterParseError(f'Error at line: {token.line} column: {token.column} - Expected "}}" but saw <{token.tokenType.name}>:"{token.lexeme}".')
-        return Condition(conjunction, needsBrace)
+
+        return Condition(conjunction)
 
 
-    def parseConjunction(self) -> RelationalOperator|LogicalOperator:
-        relation = self.parseRelationalOperator()
+    def parseConjunction(self) -> RelationalOperator|LogicalOperator|Condition:
+        token = self.peek()
+        relOrCond: RelationalOperator|Condition|LogicalOperator
+        if token.tokenType is TOKENS.T_L_BRACE:
+            token = self.getToken()
+            relOrCond = self.parseCondition()
+            token = self.getToken()
+            if token.tokenType is not TOKENS.T_R_BRACE:
+                raise CritterParseError(token, '}')
+            relOrCond.setBrace(True)
+        else:
+            relOrCond = self.parseRelationalOperator()
 
         token = self.peek()
         while token.tokenType is TOKENS.T_AND:
             op = self.getToken()
             logOp = LogicalOperator()
-            logOp.setLeft(relation)
+            logOp.setLeft(relOrCond)
             logOp.setOperator(TokenLexeme(op.tokenType, op.lexeme))
-            logOp.setRight(self.parseRelationalOperator())
-            relation = logOp
+            tmp = self.peek()
+            if tmp.tokenType is TOKENS.T_L_BRACE:
+                brace = self.getToken()
+                condition = Condition(self.parseCondition(), True)
+                brace = self.getToken()
+                if brace.tokenType is not TOKENS.T_R_BRACE:
+                    raise CritterParseError(brace, '}')
+                logOp.setRight(condition)
+            else:
+                logOp.setRight(self.parseRelationalOperator())
+            relOrCond = logOp
             token = self.peek()    
-        return relation
-
-    #def parseLogicalOperator(self) -> LogicalOperator:
-
-
-        #return LogicalOperator()
+        return relOrCond
 
     def parseExpression(self) -> Expression:
         expression = Expression(self.parseTerm())
@@ -91,7 +98,7 @@ class Parser():
         expression = Expression(self.parseTerm())
         token = self.peek()
         if token.tokenType not in SET_RELOPS:
-            raise CritterParseError(f'Error at line: {token.line} column: {token.column} - Expected <RelationalOperator> but saw <{token.tokenType.name}>:"{token.lexeme}".')
+            raise CritterParseError(token, '<SET_RELOPS>')
         op = self.getToken()
         relOp = RelationalOperator()
         relOp.setLeft(expression)
@@ -117,15 +124,15 @@ class Parser():
     def parseMemNode(self) -> MemNode:
         token = self.peek()
         if token.tokenType is not TOKENS.T_MEM:
-            raise CritterParseError(f'Error at line: {token.line} column: {token.column} - Expected "mem" but saw <{token.tokenType.name}>:"{token.lexeme}".')
+            raise CritterParseError(token, 'mem')
         token = self.getToken()
         token = self.getToken()
         if token.tokenType is not TOKENS.T_L_BRACKET:
-            raise CritterParseError(f'Error at line: {token.line} column: {token.column} - Expected "[" but saw <{token.tokenType.name}>:"{token.lexeme}".')
+            raise CritterParseError(token, '[')
         expression = self.parseExpression()
         token = self.getToken()
         if token.tokenType is not TOKENS.T_R_BRACKET:
-            raise CritterParseError(f'Error at line: {token.line} column: {token.column} - Expected "]" but saw <{token.tokenType.name}>:"{token.lexeme}".')
+            raise CritterParseError(token, ']')
         return MemNode(expression)
     
     def parseSensor(self) -> SensorNode:
@@ -136,18 +143,18 @@ class Parser():
                 sensorType = token
                 token = self.getToken()
                 if token.tokenType is not TOKENS.T_L_BRACKET:
-                    raise CritterParseError(f'Error at line: {token.line} column: {token.column} - Expected "[" but saw <{token.tokenType.name}>:"{token.lexeme}".')
+                    raise CritterParseError(token, '[')
                 expression = self.parseExpression()
                 token = self.getToken()
                 if token.tokenType is not TOKENS.T_R_BRACKET:
-                    raise CritterParseError(f'Error at line: {token.line} column: {token.column} - Expected "]" but saw <{token.tokenType.name}>:"{token.lexeme}".')
+                    raise CritterParseError(token, ']')
                 sensorNode = SensorNode(sensorType, expression)
             case TOKENS.T_SMELL:
                 token = self.getToken()
                 sensorType = token
                 sensorNode = SensorNode(sensorType)
             case _:
-                raise CritterParseError(f'Error at line: {token.line} column: {token.column} - Expected <SENSOR> but saw <{token.tokenType.name}>:"{token.lexeme}".')
+                raise CritterParseError(token, '<SENSOR>')
         return sensorNode
 
 
@@ -175,19 +182,19 @@ class Parser():
                 inner = self.parseExpression()
                 paren = self.getToken()
                 if paren.tokenType is not TOKENS.T_R_PAREN:
-                    raise CritterParseError(f'Error at line: {paren.line} column: {paren.column} - Expected ")" but saw <{paren.tokenType.name}>:"{paren.lexeme}"')
+                    raise CritterParseError(paren, ')')
                 return Factor(inner)
             case TOKENS.T_NUMBER:
                 number = self.parseNumber()
                 return Factor(number)
             case _:
-                raise CritterParseError(f'Error at line: {token.line} column: {token.column} - Expected <Factor> but saw <{token.tokenType.name}>:"{token.lexeme}"')
+                raise CritterParseError(token, '<Factor>')
     
     
     def parseNumber(self) -> Number:
         token = self.getToken()
         if token.tokenType is not TOKENS.T_NUMBER:
-            raise CritterParseError(f'Error at line: {token.line} column: {token.column} - Expected <Number> but saw <{token.tokenType.name}>:"{token.lexeme}"') 
+            raise CritterParseError(token, '<Number>') 
         return Number(token)
     
     

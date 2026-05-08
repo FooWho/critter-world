@@ -94,13 +94,25 @@ class MemNode(ASTNode):
 class Condition(ASTNode):
     _children = ('condition',)
 
-    def __init__(self, condition: LogicalOperator|RelationalOperator|None = None, needsBrace: bool = False) -> None:
+    def __init__(self, condition: LogicalOperator|RelationalOperator|Condition|None = None, needsBrace: bool = False) -> None:
         self.condition = condition or RelationalOperator()
         self.needsBrace = needsBrace        
             
-    def setCondition(self, condition: LogicalOperator|RelationalOperator, needsBrace: bool = False) -> None:
+    def setCondition(self, condition: LogicalOperator|RelationalOperator|Condition, needsBrace: bool = False) -> None:
         self.condition = condition
         self.needsBrace = needsBrace
+    
+    def setBrace(self, needsBrace: bool) -> None:
+        self.needsBrace = needsBrace
+
+    def __str__(self) -> str:
+        if self.needsBrace:
+            return ''.join(['{', str(self.condition), '}'])
+        else:
+            return str(self.condition)
+
+ 
+
 
 class Conjunction(ASTNode):
     _children = ('conjunction',)
@@ -110,6 +122,9 @@ class Conjunction(ASTNode):
 
     def setConjunction(self, conjunction: RelationalOperator|LogicalOperator) -> None:
         self.conjunction = conjunction
+
+    def __str__(self) -> str:
+        return str(self.conjunction)
 
 
 class Expression(ASTNode):
@@ -131,7 +146,7 @@ class Expression(ASTNode):
 class LogicalOperator(ASTNode):
     _children = ('leftSide', 'operator', 'righSide')
 
-    def __init__(self, leftSide: RelationalOperator|Conjunction|LogicalOperator|None = None, operator: TokenLexeme|None = None, rightSide: RelationalOperator|LogicalOperator|Conjunction|None = None) -> None:
+    def __init__(self, leftSide: RelationalOperator|Conjunction|LogicalOperator|Condition|None = None, operator: TokenLexeme|None = None, rightSide: RelationalOperator|LogicalOperator|Conjunction|Condition|None = None) -> None:
         self.leftSide = leftSide or RelationalOperator()
         self.operator = operator or T_NONE
         self.rightSide = rightSide or RelationalOperator()
@@ -139,13 +154,13 @@ class LogicalOperator(ASTNode):
     def __str__(self) -> str:
         return ''.join([str(self.leftSide), ' ', self.operator.lexeme, ' ', str(self.rightSide)])
     
-    def setLeft(self, leftSide: RelationalOperator|LogicalOperator|Conjunction) -> None:
+    def setLeft(self, leftSide: RelationalOperator|LogicalOperator|Conjunction|Condition) -> None:
         self.leftSide = leftSide
 
     def setOperator(self, operator: TokenLexeme) -> None:
         self.operator = operator
 
-    def setRight(self, rightSide: RelationalOperator|LogicalOperator|Conjunction) -> None:
+    def setRight(self, rightSide: RelationalOperator|LogicalOperator|Conjunction|Condition) -> None:
         self.rightSide = rightSide
 
 class BinaryOperator(ASTNode):

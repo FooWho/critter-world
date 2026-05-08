@@ -68,7 +68,9 @@ class TokenLexeme(NamedTuple):
     lexeme: str
 
 class CritterParseError(Exception):
-    pass
+    def __init__(self, token: Token, expected: str) -> None:
+        self.message = f'Error at line: {token.line} column: {token.column} - Expected "{expected}" but saw <{token.tokenType.name}>:"{token.lexeme}".'
+        super().__init__(self.message)
 
 SET_RELOPS = {TOKENS.T_LESS, TOKENS.T_LEQU, TOKENS.T_LESS, TOKENS.T_EQU, TOKENS.T_NEQU, TOKENS.T_GREAT, TOKENS.T_GEQU}
 SET_ADDOPS = {TOKENS.T_PLUS, TOKENS.T_MINUS}

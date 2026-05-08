@@ -39,6 +39,7 @@ class Lexer():
             elif tokenType == TOKENS.T_COMMENT:
                 lineNumber += lexeme.count('\n')
                 lineStart = tc.end()
+                continue
             elif tokenType == TOKENS.T_MISMATCH:
                 raise CritterParseError(f'Error parsing critter program. Read: "{lexeme}" at line {lineNumber} column {column}.')
             yield Token(tokenType, lexeme, lineNumber, column)

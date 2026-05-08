@@ -103,6 +103,10 @@ class Expression(ASTNode):
     def setExpression(self, expression: Term|BinaryOperator) -> None:
         self.expression = expression
 
+    @staticmethod
+    def expressionIsTerm(this: Term|BinaryOperator):
+        return isinstance(this, Term)
+
 class BinaryOperator(ASTNode):
     _children = ('leftSide', 'operator', 'rightSide')
 
@@ -171,6 +175,7 @@ class Term(ASTNode):
     def setTerm(self, term: Factor|BinaryOperator) -> None:
         self.term = term
 
+
 class Factor(ASTNode):
     _children = ('factor',)
 
@@ -210,6 +215,7 @@ class Factor(ASTNode):
             return '('+ str(self.factor) + ')'
         else:
             return str(self.factor)
+               
     
 class Number(ASTNode):
     _children = ('number',)
@@ -217,11 +223,13 @@ class Number(ASTNode):
     def __init__(self, number: Token|None = None) -> None:
         if number:
             self.number = TokenLexeme(number.tokenType, number.lexeme)
+            self.value = int(self.number.lexeme)
         else:
             self.number = T_NONE
 
     def __str__(self) -> str:
         return self.number.lexeme
+    
 
         
 

@@ -25,12 +25,12 @@ class ASTNode():
 class Program(ASTNode):
     _children = ('obj',)
 
-    def __init__(self, obj: Term|Factor|BinaryOperator|Number|Expression|RelationalOperator|None = None) -> None:
-        self.obj:list[Term|Factor|BinaryOperator|Number|Expression|RelationalOperator] = []
+    def __init__(self, obj: Condition|None = None) -> None:
+        self.obj:list[Condition] = []
         if obj:
             self.obj.append(obj)
 
-    def addObj(self, obj: Term|Factor|BinaryOperator|Number|Expression|RelationalOperator) -> None:
+    def addObj(self, obj: Condition) -> None:
         self.obj.append(obj)
 
 class SensorNode(ASTNode):
@@ -89,7 +89,28 @@ class MemNode(ASTNode):
         expression = Expression(term)
         memNode = MemNode(expression)
         return memNode
+    
+
+class Condition(ASTNode):
+    _children = ('condition',)
+
+    def __init__(self, condition: LogicalOperator|RelationalOperator|None = None, needsBrace: bool = False) -> None:
+        self.condition = condition or RelationalOperator()
+        self.needsBrace = needsBrace        
             
+    def setCondition(self, condition: LogicalOperator|RelationalOperator, needsBrace: bool = False) -> None:
+        self.condition = condition
+        self.needsBrace = needsBrace
+
+class Conjunction(ASTNode):
+    _children = ('conjunction',)
+
+    def __init__(self, conjunction: LogicalOperator|RelationalOperator|None = None) -> None:
+        self.conjunction = conjunction or RelationalOperator()
+
+    def setConjunction(self, conjunction: LogicalOperator|RelationalOperator) -> None:
+        self.conjunction = conjunction
+
 
 class Expression(ASTNode):
     _children = ('expression',)
@@ -106,6 +127,26 @@ class Expression(ASTNode):
     @staticmethod
     def expressionIsTerm(this: Term|BinaryOperator):
         return isinstance(this, Term)
+    
+class LogicalOperator(ASTNode):
+    _children = ('leftSide', 'operator', 'righSide')
+
+    def __init__(self, leftSide: RelationalOperator|BinaryOperator|LogicalOperator|None = None, operator: TokenLexeme|None = None, rightSide: RelationalOperator|LogicalOperator|BinaryOperator|None = None) -> None:
+        self.leftSide = leftSide or RelationalOperator()
+        self.operator = operator or T_NONE
+        self.rightSide = rightSide or RelationalOperator()
+
+    def __str__(self) -> str:
+        return ''.join([str(self.leftSide), ' ', self.operator.lexeme, ' ', str(self.rightSide)])
+    
+    def setLeft(self, leftSide: RelationalOperator|LogicalOperator|BinaryOperator) -> None:
+        self.leftSide = leftSide
+
+    def setOperator(self, operator: TokenLexeme) -> None:
+        self.operator = operator
+
+    def setRight(self, rightSide: RelationalOperator|LogicalOperator|BinaryOperator) -> None:
+        self.rightSide = rightSide
 
 class BinaryOperator(ASTNode):
     _children = ('leftSide', 'operator', 'rightSide')
@@ -116,7 +157,7 @@ class BinaryOperator(ASTNode):
         self.rightSide = rightSide or Factor()
     
     def __str__(self) -> str:
-        return str(self.leftSide) + ' ' + self.operator.lexeme + ' ' + str(self.rightSide)
+        return ''.join([str(self.leftSide), ' ', self.operator.lexeme, ' ', str(self.rightSide)])
     
     def setLeft(self, leftSide: Term|Factor|BinaryOperator) -> None:
         self.leftSide = leftSide
@@ -136,7 +177,7 @@ class RelationalOperator(ASTNode):
         self.rightSide = rightSide or Expression()
 
     def __str__(self) -> str:
-        return str(self.leftSide) + ' ' + self.operator.lexeme + ' ' + str(self.rightSide)
+        return ''.join([str(self.leftSide), ' ', self.operator.lexeme, ' ', str(self.rightSide)])
     
     def setLeft(self, leftSide: Expression) -> None:
         self.leftSide = leftSide
@@ -212,7 +253,7 @@ class Factor(ASTNode):
 
     def __str__(self) -> str:
         if self.factorType is TOKENS.T_L_PAREN:
-            return '('+ str(self.factor) + ')'
+            return ''.join(['(', str(self.factor),')'])
         else:
             return str(self.factor)
                
@@ -226,6 +267,7 @@ class Number(ASTNode):
             self.value = int(self.number.lexeme)
         else:
             self.number = T_NONE
+            self.value = None
 
     def __str__(self) -> str:
         return self.number.lexeme

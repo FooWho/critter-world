@@ -55,15 +55,24 @@ class Parser():
         return Condition(conjunction, needsBrace)
 
 
+    def parseConjunction(self) -> RelationalOperator|LogicalOperator:
+        relation = self.parseRelationalOperator()
+
+        token = self.peek()
+        while token.tokenType is TOKENS.T_AND:
+            op = self.getToken()
+            logOp = LogicalOperator()
+            logOp.setLeft(relation)
+            logOp.setOperator(TokenLexeme(op.tokenType, op.lexeme))
+            logOp.setRight(self.parseRelationalOperator())
+            relation = logOp
+            token = self.peek()    
+        return relation
+
+    #def parseLogicalOperator(self) -> LogicalOperator:
 
 
-    def parseConjunction(self) -> RelationalOperator|LogicalOperator
-
-
-
-
-    def parseLogicalOperator(self) -> LogicalOperator:
-        return LogicalOperator()
+        #return LogicalOperator()
 
     def parseExpression(self) -> Expression:
         expression = Expression(self.parseTerm())

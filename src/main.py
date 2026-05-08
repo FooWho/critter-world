@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 
 def main():
     lexer = Lexer()
-    tokens = lexer.tokenize('4 < 5')
+    tokens = lexer.tokenize('4 < 5 and {3 > 2}')
     parser = Parser(tokens)
     try:
         ast = parser.parse()

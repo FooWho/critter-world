@@ -105,10 +105,10 @@ class Condition(ASTNode):
 class Conjunction(ASTNode):
     _children = ('conjunction',)
 
-    def __init__(self, conjunction: LogicalOperator|RelationalOperator|None = None) -> None:
+    def __init__(self, conjunction: RelationalOperator|LogicalOperator|None = None) -> None:
         self.conjunction = conjunction or RelationalOperator()
 
-    def setConjunction(self, conjunction: LogicalOperator|RelationalOperator) -> None:
+    def setConjunction(self, conjunction: RelationalOperator|LogicalOperator) -> None:
         self.conjunction = conjunction
 
 
@@ -131,7 +131,7 @@ class Expression(ASTNode):
 class LogicalOperator(ASTNode):
     _children = ('leftSide', 'operator', 'righSide')
 
-    def __init__(self, leftSide: RelationalOperator|BinaryOperator|LogicalOperator|None = None, operator: TokenLexeme|None = None, rightSide: RelationalOperator|LogicalOperator|BinaryOperator|None = None) -> None:
+    def __init__(self, leftSide: RelationalOperator|Conjunction|LogicalOperator|None = None, operator: TokenLexeme|None = None, rightSide: RelationalOperator|LogicalOperator|Conjunction|None = None) -> None:
         self.leftSide = leftSide or RelationalOperator()
         self.operator = operator or T_NONE
         self.rightSide = rightSide or RelationalOperator()
@@ -139,13 +139,13 @@ class LogicalOperator(ASTNode):
     def __str__(self) -> str:
         return ''.join([str(self.leftSide), ' ', self.operator.lexeme, ' ', str(self.rightSide)])
     
-    def setLeft(self, leftSide: RelationalOperator|LogicalOperator|BinaryOperator) -> None:
+    def setLeft(self, leftSide: RelationalOperator|LogicalOperator|Conjunction) -> None:
         self.leftSide = leftSide
 
     def setOperator(self, operator: TokenLexeme) -> None:
         self.operator = operator
 
-    def setRight(self, rightSide: RelationalOperator|LogicalOperator|BinaryOperator) -> None:
+    def setRight(self, rightSide: RelationalOperator|LogicalOperator|Conjunction) -> None:
         self.rightSide = rightSide
 
 class BinaryOperator(ASTNode):

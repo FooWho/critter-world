@@ -27,7 +27,7 @@ class TestParser(unittest.TestCase):
             self.assertEqual(node.value, int(numStrs[i]))
 
     def testParseMemNode(self):
-        testStr = 'mem[10] mem[0] mem[3]'
+        testStr = 'mem[10] mem[5] mem[3] mem[17]'
         memStrs:list[LiteralString] = testStr.split()
         parser = self.get_parser(testStr)
         for i in range(len(memStrs)):
@@ -49,10 +49,30 @@ class TestParser(unittest.TestCase):
         return (num, int(num))
 
     def testParseSensor(self):
-        parser = self.get_parser("ahead[2]")
-        node = parser.parseSensor()
-        self.assertIsInstance(node, SensorNode)
-        self.assertEqual(node.sensorType, TOKENS.T_AHEAD)
+        testStr = 'ahead[2] nearby[3] random[4] smell'
+        sensorStrs: list[LiteralString] = testStr.split()
+        parser = self.get_parser(testStr)
+        for i in range(len(sensorStrs)):
+            node = parser.parseSensor()          
+            self.assertIsInstance(node, SensorNode)
+            tst = self.helperForSensorNode(sensorStrs[i])
+            self.assertEqual(node.sensorType, tst[0])
+
+    def helperForSensorNode(self, token: str) -> tuple[TOKENS, str, int]:
+        if not token.find('ahead'):
+            num = token.strip('ahead[').rstrip(']')
+            return (TOKENS.T_AHEAD, num, int(num))
+        elif not token.find('nearby'):
+            num = token.strip('nearby[').rstrip(']')
+            return (TOKENS.T_NEARBY, num, int(num))
+        elif not token.find('random'):
+            num = token.strip('random[').rstrip(']')
+            return (TOKENS.T_RANDOM, num, int(num))
+        elif not token.find('smell'):
+            return (TOKENS.T_SMELL, '-1', -1)
+        else:
+            raise ValueError('Token does not have a <Sensor> with <Number> or "smell".')
+
         
     def testParseRelationalOperator(self):
         parser = self.get_parser("mem[0] >= 5")

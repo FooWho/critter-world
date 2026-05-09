@@ -2,9 +2,6 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import NamedTuple, TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from abstractSyntaxTree import Term, Factor, Number
-
 class TOKENS(StrEnum):
     T_MEMSIZE = r'\bMEMSIZE\b' 
     T_DEFENSE = r'\bDEFENSE\b'

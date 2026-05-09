@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 
 def main():
     lexer = Lexer()
-    tokens = lexer.tokenize('{{4 < 5} or {3 != 5 and 4 > 6}} and {{5 < 6 }}')
+    tokens = lexer.tokenize('{{4+2 < 5 mod mem[nearby[6]]} or {3 != 5 and 4 > 6}} and {{4 < smell}}')
     parser = Parser(tokens)
     try:
         ast = parser.parse()

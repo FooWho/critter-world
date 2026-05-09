@@ -35,14 +35,14 @@ class TestParser(unittest.TestCase):
             self.assertIsInstance(node, MemNode)
             self.assertIsInstance(node.expression, Expression)
             self.assertIsInstance(node.expression.expression, Term)
-            termNode = cast(Term, node.expression.expression)
-            self.assertIsInstance(termNode.term, Factor)
-            factorNode = cast(Factor, termNode.term)
-            self.assertIsInstance(factorNode.factor, Number)
-            numberNode = cast(Number, factorNode.factor) 
+            node = cast(Term, node.expression.expression)
+            self.assertIsInstance(node.term, Factor)
+            node = cast(Factor, node.term)
+            self.assertIsInstance(node.factor, Number)
+            node = cast(Number, node.factor) 
             tst = self.helperForMemNode(memStrs[i])
-            self.assertEqual(numberNode.number.lexeme, tst[0])
-            self.assertEqual(numberNode.value, tst[1])
+            self.assertEqual(node.number.lexeme, tst[0])
+            self.assertEqual(node.value, tst[1])
 
     def helperForMemNode(self, token: str) -> tuple[str, int]:
         num = token.strip('mem[').rstrip(']')
@@ -73,11 +73,11 @@ class TestParser(unittest.TestCase):
         else:
             raise ValueError('Token does not have a <Sensor> with <Number> or "smell".')
 
-        
-    def testParseRelationalOperator(self):
+    def testParseRelation(self):
         parser = self.get_parser("mem[0] >= 5")
-        node = parser.parseRelationalOperator()
+        node = parser.parseRelation()
         self.assertIsInstance(node, RelationalOperator)
+        node = cast(RelationalOperator, node)
         self.assertEqual(node.operator.lexeme, ">=")
 
     def testParseExpressionWithAddOps(self):

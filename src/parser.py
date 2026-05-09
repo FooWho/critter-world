@@ -1,6 +1,6 @@
 from __future__ import annotations
 from typing import Iterator
-from schemas import Token, TokenLexeme, TOKENS, CritterParseError, SET_MULOPS, SET_ADDOPS, SET_FACTOR_INITIATOR
+from schemas import Token, TokenLexeme, TOKENS, CritterParseError, SET_MULOPS, SET_ADDOPS
 from schemas import SET_SUGAR, SET_SENSORS, SET_RELOPS
 from abstractSyntaxTree import (AbstractSyntaxTree, Program, MemNode, SensorNode, Expression, LogicalOperator, 
                                 RelationalOperator, BinaryOperator, UnaryOperator, Term, Factor, Number, Condition)
@@ -49,37 +49,18 @@ class Parser():
 
 
     def parseConjunction(self) -> RelationalOperator|LogicalOperator|Condition:
-        token = self.peek()
-        relOrCond: RelationalOperator|Condition|LogicalOperator
-        if token.tokenType is TOKENS.T_L_BRACE:
-            token = self.getToken()
-            relOrCond = self.parseCondition()
-            token = self.getToken()
-            if token.tokenType is not TOKENS.T_R_BRACE:
-                raise CritterParseError(token, '}')
-            relOrCond.setBrace(True)
-        else:
-            relOrCond = self.parseRelationalOperator()
+        relation = self.parseRelation()
 
         token = self.peek()
         while token.tokenType is TOKENS.T_AND:
             op = self.getToken()
             logOp = LogicalOperator()
-            logOp.setLeft(relOrCond)
+            logOp.setLeft(relation)
             logOp.setOperator(TokenLexeme(op.tokenType, op.lexeme))
-            tmp = self.peek()
-            if tmp.tokenType is TOKENS.T_L_BRACE:
-                brace = self.getToken()
-                condition = Condition(self.parseCondition(), True)
-                brace = self.getToken()
-                if brace.tokenType is not TOKENS.T_R_BRACE:
-                    raise CritterParseError(brace, '}')
-                logOp.setRight(condition)
-            else:
-                logOp.setRight(self.parseRelationalOperator())
-            relOrCond = logOp
+            logOp.setRight(self.parseRelation())
+            relation = logOp
             token = self.peek()    
-        return relOrCond
+        return relation
 
     def parseExpression(self) -> Expression:
         expression = Expression(self.parseTerm())
@@ -94,14 +75,24 @@ class Parser():
             token = self.peek()       
         return expression
     
-    def parseRelationalOperator(self) -> RelationalOperator:
-        expression = Expression(self.parseTerm())
+    def parseRelation(self) -> RelationalOperator|Condition:
+        token = self.peek()
+        if token.tokenType is TOKENS.T_L_BRACE:
+            self.getToken()
+            condition = self.parseCondition()
+            brace = self.getToken()
+            if brace.tokenType is not TOKENS.T_R_BRACE:
+                raise CritterParseError(brace, '}')
+            condition.setBrace(True)
+            return condition
+            
+        leftExpr = self.parseExpression()
         token = self.peek()
         if token.tokenType not in SET_RELOPS:
             raise CritterParseError(token, '<SET_RELOPS>')
         op = self.getToken()
         relOp = RelationalOperator()
-        relOp.setLeft(expression)
+        relOp.setLeft(leftExpr)
         relOp.setOperator(TokenLexeme(op.tokenType, op.lexeme))
         relOp.setRight(self.parseExpression())
         return relOp
@@ -115,7 +106,7 @@ class Parser():
             binOp = BinaryOperator()
             binOp.setLeft(term)
             binOp.setOperator(TokenLexeme(op.tokenType, op.lexeme))
-            binOp.setRight(Term(self.parseFactor()))
+            binOp.setRight(self.parseFactor())
             term = binOp
             token = self.peek()
         return term
@@ -204,5 +195,3 @@ class Parser():
 
 
     
-
-

@@ -33,64 +33,6 @@ class Program(ASTNode):
     def addObj(self, obj: Condition) -> None:
         self.obj.append(obj)
 
-class SensorNode(ASTNode):
-    _children = ('sensor',)
-
-    def __init__(self, sensorType: Token|None = None, expression: Expression|None = None) -> None:
-        self.expression = expression or Expression()
-        if sensorType:
-            self.sensorType = sensorType.tokenType
-        else:
-            self.sensorType = TOKENS.T_NONE
-
-    def __str__(self) -> str:
-        match self.sensorType:
-            case TOKENS.T_AHEAD:
-                return f'ahead[{str(self.expression)}]'
-            case TOKENS.T_NEARBY:
-                return f'nearby[{str(self.expression)}]'
-            case TOKENS.T_RANDOM:
-                return f'random[{str(self.expression)}]'
-            case TOKENS.T_SMELL:
-                return 'smell'
-            case _:
-                raise 
-
-class MemNode(ASTNode):
-    _children = ('expression',)
-
-    def __init__(self, expression: Expression|None = None) -> None:
-        self.expression = expression or Expression()
-
-    def __str__(self)-> str:
-        return f'mem[{str(self.expression)}]'
-    
-    @staticmethod
-    def desugar(token: Token) -> MemNode:
-        match token.tokenType:
-            case TOKENS.T_MEMSIZE:
-                number = Number(Token(TOKENS.T_NUMBER, '0', token.line, token.column))
-            case TOKENS.T_DEFENSE:
-                number = Number(Token(TOKENS.T_NUMBER, '1', token.line, token.column))
-            case TOKENS.T_OFFENSE:
-                number = Number(Token(TOKENS.T_NUMBER, '2', token.line, token.column))
-            case TOKENS.T_SIZE:
-                number = Number(Token(TOKENS.T_NUMBER, '3', token.line, token.column))
-            case TOKENS.T_ENERGY:
-                number = Number(Token(TOKENS.T_NUMBER, '4', token.line, token.column))
-            case TOKENS.T_PASS:
-                number = Number(Token(TOKENS.T_NUMBER, '5', token.line, token.column))
-            case TOKENS.T_POSTURE:
-                number = Number(Token(TOKENS.T_NUMBER, '6', token.line, token.column))
-            case _:
-                raise ValueError(f'Error - Method desugar(token) called with invalid token: {token}')
-        factor = Factor(number)
-        term = Term(factor)
-        expression = Expression(term)
-        memNode = MemNode(expression)
-        return memNode
-    
-
 class Condition(ASTNode):
     _children = ('condition',)
 
@@ -111,22 +53,6 @@ class Condition(ASTNode):
         else:
             return str(self.condition)
 
- 
-
-
-class Conjunction(ASTNode):
-    _children = ('conjunction',)
-
-    def __init__(self, conjunction: RelationalOperator|LogicalOperator|None = None) -> None:
-        self.conjunction = conjunction or RelationalOperator()
-
-    def setConjunction(self, conjunction: RelationalOperator|LogicalOperator) -> None:
-        self.conjunction = conjunction
-
-    def __str__(self) -> str:
-        return str(self.conjunction)
-
-
 class Expression(ASTNode):
     _children = ('expression',)
 
@@ -144,9 +70,9 @@ class Expression(ASTNode):
         return isinstance(this, Term)
     
 class LogicalOperator(ASTNode):
-    _children = ('leftSide', 'operator', 'righSide')
+    _children = ('leftSide', 'operator', 'rightSide')
 
-    def __init__(self, leftSide: RelationalOperator|Conjunction|LogicalOperator|Condition|None = None, operator: TokenLexeme|None = None, rightSide: RelationalOperator|LogicalOperator|Conjunction|Condition|None = None) -> None:
+    def __init__(self, leftSide: RelationalOperator|LogicalOperator|Condition|None = None, operator: TokenLexeme|None = None, rightSide: RelationalOperator|LogicalOperator|Condition|None = None) -> None:
         self.leftSide = leftSide or RelationalOperator()
         self.operator = operator or T_NONE
         self.rightSide = rightSide or RelationalOperator()
@@ -154,13 +80,13 @@ class LogicalOperator(ASTNode):
     def __str__(self) -> str:
         return ''.join([str(self.leftSide), ' ', self.operator.lexeme, ' ', str(self.rightSide)])
     
-    def setLeft(self, leftSide: RelationalOperator|LogicalOperator|Conjunction|Condition) -> None:
+    def setLeft(self, leftSide: RelationalOperator|LogicalOperator|Condition) -> None:
         self.leftSide = leftSide
 
     def setOperator(self, operator: TokenLexeme) -> None:
         self.operator = operator
 
-    def setRight(self, rightSide: RelationalOperator|LogicalOperator|Conjunction|Condition) -> None:
+    def setRight(self, rightSide: RelationalOperator|LogicalOperator|Condition) -> None:
         self.rightSide = rightSide
 
 class BinaryOperator(ASTNode):
@@ -203,22 +129,6 @@ class RelationalOperator(ASTNode):
     def setRight(self, rightSide: Expression) -> None:
         self.rightSide = rightSide
 
-class UnaryOperator(ASTNode):
-    _children = ('operator', 'operand')
-
-    def __init__(self, operator: TokenLexeme|None = None, operand: Factor|None = None) -> None:
-        self.operator = operator or T_NONE
-        self.operand = operand or Factor()
-
-    def __str__(self) -> str:
-        return '-' + str(self.operand)
-    
-    def setOperator(self, operator: TokenLexeme) -> None:
-        self.operator = operator
-
-    def setOperand(self, operand: Factor) ->None:
-        self.operand = operand
-
 class Term(ASTNode):
     _children = ('term',)
 
@@ -252,7 +162,7 @@ class Factor(ASTNode):
             case _:
                 raise ValueError(f'Error: Received unexpected type for Factor: {str(type(self.factor))}')
     
-    def setFactor(self, factor: Number|MemNode|UnaryOperator|Expression) -> None:
+    def setFactor(self, factor: Number|MemNode|UnaryOperator|Expression|SensorNode) -> None:
         self.factor = factor
         match self.factor:
             case Number():
@@ -263,6 +173,8 @@ class Factor(ASTNode):
                 self.factorType = TOKENS.T_MINUS
             case Expression():
                 self.factorType = TOKENS.T_L_PAREN
+            case SensorNode():
+                self.factorType = self.factor.sensorType
             case _:
                 raise ValueError(f'Error: Received unexpected type for Factor: {str(type(self.factor))}')
 
@@ -287,7 +199,79 @@ class Number(ASTNode):
     def __str__(self) -> str:
         return self.number.lexeme
     
+class MemNode(ASTNode):
+    _children = ('expression',)
+
+    def __init__(self, expression: Expression|None = None) -> None:
+        self.expression = expression or Expression()
+
+    def __str__(self)-> str:
+        return f'mem[{str(self.expression)}]'
+    
+    @staticmethod
+    def desugar(token: Token) -> MemNode:
+        match token.tokenType:
+            case TOKENS.T_MEMSIZE:
+                number = Number(Token(TOKENS.T_NUMBER, '0', token.line, token.column))
+            case TOKENS.T_DEFENSE:
+                number = Number(Token(TOKENS.T_NUMBER, '1', token.line, token.column))
+            case TOKENS.T_OFFENSE:
+                number = Number(Token(TOKENS.T_NUMBER, '2', token.line, token.column))
+            case TOKENS.T_SIZE:
+                number = Number(Token(TOKENS.T_NUMBER, '3', token.line, token.column))
+            case TOKENS.T_ENERGY:
+                number = Number(Token(TOKENS.T_NUMBER, '4', token.line, token.column))
+            case TOKENS.T_PASS:
+                number = Number(Token(TOKENS.T_NUMBER, '5', token.line, token.column))
+            case TOKENS.T_POSTURE:
+                number = Number(Token(TOKENS.T_NUMBER, '6', token.line, token.column))
+            case _:
+                raise ValueError(f'Error - Method desugar(token) called with invalid token: {token}')
+        factor = Factor(number)
+        term = Term(factor)
+        expression = Expression(term)
+        memNode = MemNode(expression)
+        return memNode
+    
+class UnaryOperator(ASTNode):
+    _children = ('operator', 'operand')
+
+    def __init__(self, operator: TokenLexeme|None = None, operand: Factor|None = None) -> None:
+        self.operator = operator or T_NONE
+        self.operand = operand or Factor()
+
+    def __str__(self) -> str:
+        return '-' + str(self.operand)
+    
+    def setOperator(self, operator: TokenLexeme) -> None:
+        self.operator = operator
+
+    def setOperand(self, operand: Factor) ->None:
+        self.operand = operand
+
+class SensorNode(ASTNode):
+    _children = ('sensor',)
+
+    def __init__(self, sensorType: Token|None = None, expression: Expression|None = None) -> None:
+        self.expression = expression or Expression()
+        if sensorType:
+            self.sensorType = sensorType.tokenType
+        else:
+            self.sensorType = TOKENS.T_NONE
+
+    def __str__(self) -> str:
+        match self.sensorType:
+            case TOKENS.T_AHEAD:
+                return f'ahead[{str(self.expression)}]'
+            case TOKENS.T_NEARBY:
+                return f'nearby[{str(self.expression)}]'
+            case TOKENS.T_RANDOM:
+                return f'random[{str(self.expression)}]'
+            case TOKENS.T_SMELL:
+                return 'smell'
+            case _:
+                raise ValueError(f'Unknown Value: {self.sensorType}')
+    
 
         
-
-
+ 

@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import Iterator
-from schemas import TOKENS, Token, TokenLexeme, CritterParseError, SET_ADDOPS, SET_MULOPS
-from abstractSyntaxTree import Program, Number, UnaryOperator, MemNode, BinaryOperator
+from schemas import TOKENS, Token, TokenLexeme, CritterParseError, SET_ADDOPS, SET_MULOPS, SET_RELOPS
+from abstractSyntaxTree import Program, Number, UnaryOperator, MemNode, BinaryOperator, RelationalOperator
 
 class Parser():
 
@@ -22,14 +22,29 @@ class Parser():
 
         token = self.peek()
         while token.tokenType is not TOKENS.T_EOF:
-            obj = self.parseExpression()
-            program = Program(obj)
+            obj = self.parseRelation()
+            program.setRoot(obj)
             token = self.peek()
 
-        parseTree = Program(obj)
+        parseTree = program
         return parseTree
 
-    
+    def parseRelation(self) -> RelationalOperator:
+        token = self.peek()
+        relOp = RelationalOperator()
+
+        if token.tokenType is TOKENS.T_L_BRACE:
+            pass
+        else:
+            leftOperand = self.parseExpression()
+            operatorToken = self.getToken()
+            if operatorToken.tokenType not in SET_RELOPS:
+                raise CritterParseError(operatorToken, '<RelationalOperator>')
+            operator = TokenLexeme(operatorToken.tokenType, operatorToken.lexeme)
+            rightOperand = self.parseExpression()
+            relOp = RelationalOperator(leftOperand, operator, rightOperand)
+        return relOp
+
     def parseExpression(self) -> Number|MemNode|UnaryOperator|BinaryOperator:
         expression = self.parseTerm()
         token = self.peek()

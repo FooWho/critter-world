@@ -1,9 +1,9 @@
 import unittest
 from lexer import Lexer
-from parser import Parser
+from parserX import Parser
 from schemas import TOKENS, CritterParseError
 from typing import cast, LiteralString
-from abstractSyntaxTree import (
+from abstractSyntaxTreeX import (
     MemNode, SensorNode, Number, RelationalOperator, Expression, Term, Factor
 )
 

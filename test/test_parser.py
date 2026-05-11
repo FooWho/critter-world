@@ -167,4 +167,9 @@ class TestParser(unittest.TestCase):
         self.assertEqual(node.evaluate(), False)
 
     def testLogicalPrecedence(self):
-        pass
+        parser = self.get_parser('1 = 1 or 2 = 2 and 5 = 3')
+        node = parser.parseCondition()
+        self.assertEqual(node.evaluate(), True)
+        parser = self.get_parser('{1 = 1 or 2 = 2} and 5 = 3')
+        node = parser.parseCondition()
+        self.assertEqual(node.evaluate(), False)

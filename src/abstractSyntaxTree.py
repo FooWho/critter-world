@@ -56,18 +56,10 @@ class LogicalOperator(ASTNode):
 
     def evaluate(self) -> bool:
         match self.operator.tokenType:
-            case TOKENS.T_LESS:
-                return self.leftOperand.evaluate() < self.rightOperand.evaluate()
-            case TOKENS.T_LEQU:
-                return self.leftOperand.evaluate() <= self.rightOperand.evaluate()
-            case TOKENS.T_EQU:
-                return self.leftOperand.evaluate() == self.rightOperand.evaluate()
-            case TOKENS.T_GEQU:
-                return self.leftOperand.evaluate() >= self.rightOperand.evaluate()
-            case TOKENS.T_GREAT:
-                return self.leftOperand.evaluate() > self.rightOperand.evaluate()
-            case TOKENS.T_NEQU:
-                return self.leftOperand.evaluate() != self.rightOperand.evaluate()
+            case TOKENS.T_AND:
+                return self.leftOperand.evaluate() and self.rightOperand.evaluate()
+            case TOKENS.T_OR:
+                return self.leftOperand.evaluate() or self.rightOperand.evaluate()
             case _:
                 raise ValueError('Bad Relational Operator')
 

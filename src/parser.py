@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import Iterator
 from schemas import TOKENS, Token, TokenLexeme, CritterParseError, SET_ADDOPS, SET_MULOPS, SET_RELOPS
-from abstractSyntaxTree import Program, Number, UnaryOperator, MemNode, BinaryOperator, RelationalOperator
+from abstractSyntaxTree import Program, Number, UnaryOperator, MemNode, BinaryOperator, RelationalOperator, LogicalOperator
 
 class Parser():
 
@@ -28,6 +28,15 @@ class Parser():
 
         parseTree = program
         return parseTree
+    
+    def parseCondition(self) -> LogicalOperator | RelationalOperator:
+
+        return RelationalOperator()
+    
+    def parseConjunction(self) -> LogicalOperator | RelationalOperator:
+
+        return RelationalOperator()
+
 
     def parseRelation(self) -> RelationalOperator:
         token = self.peek()

@@ -31,6 +31,48 @@ class ASTNode():
             elif isinstance(value, ASTNode):
                 yield value
 
+class LogicalOperator(ASTNode):
+    _children = ('leftOperand', 'operator', 'rightOperand')
+
+    def __init__(self, leftOperand: RelationalOperator|LogicalOperator|None = None, 
+                 operator: TokenLexeme = T_NONE, 
+                 rightOperand: RelationalOperator|LogicalOperator|None = None) -> None:  
+            
+        self.leftOperand = leftOperand or RelationalOperator()
+        self.operator = operator
+        self.rightOperand = rightOperand or RelationalOperator()
+
+    def __str__(self) -> str:
+        return str(self.leftOperand) + ' ' + self.operator.lexeme + ' ' + str(self.rightOperand)
+
+    def setLeftOperand(self, operand: RelationalOperator|LogicalOperator) -> None:
+        self.leftOperand = operand
+
+    def setOperator(self, operator: TokenLexeme) -> None:
+        self.operator = operator
+
+    def setRightOperand(self, operand: RelationalOperator|LogicalOperator) -> None:
+        self.rightOperand = operand
+
+    def evaluate(self) -> bool:
+        match self.operator.tokenType:
+            case TOKENS.T_LESS:
+                return self.leftOperand.evaluate() < self.rightOperand.evaluate()
+            case TOKENS.T_LEQU:
+                return self.leftOperand.evaluate() <= self.rightOperand.evaluate()
+            case TOKENS.T_EQU:
+                return self.leftOperand.evaluate() == self.rightOperand.evaluate()
+            case TOKENS.T_GEQU:
+                return self.leftOperand.evaluate() >= self.rightOperand.evaluate()
+            case TOKENS.T_GREAT:
+                return self.leftOperand.evaluate() > self.rightOperand.evaluate()
+            case TOKENS.T_NEQU:
+                return self.leftOperand.evaluate() != self.rightOperand.evaluate()
+            case _:
+                raise ValueError('Bad Relational Operator')
+
+
+
 class RelationalOperator(ASTNode):
     _children = ('leftOperand', 'operator', 'rightOperand')
 
@@ -50,7 +92,7 @@ class RelationalOperator(ASTNode):
     def setOperator(self, operator: TokenLexeme) -> None:
         self.operator = operator
 
-    def setRightOperand(self, operand) -> None:
+    def setRightOperand(self, operand: UnaryOperator|MemNode|Number|BinaryOperator) -> None:
         self.rightOperand = operand
 
     def evaluate(self) -> bool:
@@ -103,7 +145,7 @@ class BinaryOperator(ASTNode):
     def setOperator(self, operator: TokenLexeme) -> None:
         self.operator = operator
 
-    def setRightOperand(self, operand) -> None:
+    def setRightOperand(self, operand: UnaryOperator|MemNode|Number|BinaryOperator) -> None:
         self.rightOperand = operand
     
     def evaluate(self) -> float:

@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import Iterator
-from schemas import TOKENS, Token, TokenLexeme, CritterParseError, SET_ADDOPS, SET_MULOPS, SET_RELOPS
-from abstractSyntaxTree import Program, Number, UnaryOperator, MemNode, BinaryOperator, RelationalOperator, LogicalOperator
+from schemas import TOKENS, Token, TokenLexeme, CritterParseError, SET_ADDOPS, SET_MULOPS, SET_RELOPS, SET_SENSORS, SET_SUGAR
+from abstractSyntaxTree import Program, Number, UnaryOperator, MemNode, BinaryOperator, RelationalOperator, LogicalOperator, SensorNode
 
 class Parser():
 
@@ -22,7 +22,7 @@ class Parser():
 
         token = self.peek()
         while token.tokenType is not TOKENS.T_EOF:
-            obj = self.parseRelation()
+            obj = self.parseCondition()
             program.setRoot(obj)
             token = self.peek()
 
@@ -30,20 +30,44 @@ class Parser():
         return parseTree
     
     def parseCondition(self) -> LogicalOperator | RelationalOperator:
-
-        return RelationalOperator()
+        conjunction = self.parseConjunction()
+        token = self.peek()
+        while token.tokenType is TOKENS.T_OR:
+            op = self.getToken()
+            logOp = LogicalOperator()
+            logOp.setLeftOperand(conjunction)
+            logOp.setOperator(TokenLexeme(op.tokenType, op.lexeme))
+            logOp.setRightOperand(self.parseConjunction())
+            conjunction = logOp
+            token = self.peek()       
+        return conjunction
     
     def parseConjunction(self) -> LogicalOperator | RelationalOperator:
 
-        return RelationalOperator()
+        relation = self.parseRelation()
+        token = self.peek()
+        while token.tokenType is TOKENS.T_AND:
+            op = self.getToken()
+            logOp = LogicalOperator()
+            logOp.setLeftOperand(relation)
+            logOp.setOperator(TokenLexeme(op.tokenType, op.lexeme))
+            logOp.setRightOperand(self.parseRelation())
+            relation = logOp
+            token = self.peek()
+        return relation
 
 
-    def parseRelation(self) -> RelationalOperator:
+    def parseRelation(self) -> RelationalOperator|LogicalOperator:
         token = self.peek()
         relOp = RelationalOperator()
 
         if token.tokenType is TOKENS.T_L_BRACE:
-            pass
+            token = self.getToken()
+            innerCondition = self.parseCondition()
+            token = self.getToken()
+            if token.tokenType is not TOKENS.T_R_BRACE:
+                raise CritterParseError(token, '}')
+            return innerCondition
         else:
             leftOperand = self.parseExpression()
             operatorToken = self.getToken()
@@ -54,7 +78,7 @@ class Parser():
             relOp = RelationalOperator(leftOperand, operator, rightOperand)
         return relOp
 
-    def parseExpression(self) -> Number|MemNode|UnaryOperator|BinaryOperator:
+    def parseExpression(self) -> Number|MemNode|UnaryOperator|BinaryOperator|SensorNode:
         expression = self.parseTerm()
         token = self.peek()
         while token.tokenType in SET_ADDOPS:
@@ -67,7 +91,7 @@ class Parser():
             token = self.peek()       
         return expression
     
-    def parseTerm(self) -> Number|MemNode|UnaryOperator|BinaryOperator:
+    def parseTerm(self) -> Number|MemNode|UnaryOperator|BinaryOperator|SensorNode:
         term = self.parseFactor()
         token = self.peek()
         while token.tokenType in SET_MULOPS:
@@ -80,20 +104,20 @@ class Parser():
             token = self.peek()
         return term
     
-    def parseFactor(self) -> Number|UnaryOperator|MemNode|BinaryOperator:
+    def parseFactor(self) -> Number|UnaryOperator|MemNode|BinaryOperator|SensorNode:
 
         token = self.peek()
         match token.tokenType:
             case TOKENS.T_MEM:
                 memNode = self.parseMemNode()
                 return memNode
-            #case sugar if sugar in SET_SUGAR:
-            #    token = self.getToken()
-            #    memNode = MemNode.desugar(token)
-            #    return Factor(memNode)
-            #case sensor if sensor.name in [sensor.name for sensor in SET_SENSORS]: 
-            #    sensor = self.parseSensor()
-            #    return Factor(sensor)
+            case sugar if sugar in SET_SUGAR:
+                token = self.getToken()
+                memNode = MemNode.desugar(token)
+                return memNode
+            case sensor if sensor in SET_SENSORS: 
+                sensorNode = self.parseSensor()
+                return sensorNode
             case TOKENS.T_MINUS:
                 op = self.getToken()
                 unOp = UnaryOperator()
@@ -101,11 +125,11 @@ class Parser():
                 unOp.setOperand(self.parseFactor())
                 return unOp
             case TOKENS.T_L_PAREN:
-                paren = self.getToken()
+                token = self.getToken()
                 innerFactor = self.parseExpression()
-                paren = self.getToken()
-                if paren.tokenType is not TOKENS.T_R_PAREN:
-                    raise CritterParseError(paren, ')')
+                token = self.getToken()
+                if token.tokenType is not TOKENS.T_R_PAREN:
+                    raise CritterParseError(token, ')')
                 return innerFactor
             case TOKENS.T_NUMBER:
                 number = self.parseNumber()
@@ -126,6 +150,26 @@ class Parser():
         if token.tokenType is not TOKENS.T_R_BRACKET:
             raise CritterParseError(token, ']')
         return MemNode(expression)
+        
+    def parseSensor(self) -> SensorNode:
+        token = self.peek()
+        if token.tokenType not in SET_SENSORS:
+            raise CritterParseError(token, '<Sensor>')
+        sensorToken = self.getToken()
+        
+        if sensorToken.tokenType is TOKENS.T_SMELL:
+            return SensorNode(sensorToken)
+            
+        token = self.getToken()
+        if token.tokenType is not TOKENS.T_L_BRACKET:
+            raise CritterParseError(token, '[')
+        
+        expression = self.parseExpression()
+
+        token = self.getToken()
+        if token.tokenType is not TOKENS.T_R_BRACKET:
+            raise CritterParseError(token, ']')
+        return SensorNode(sensorToken, expression)
             
     def parseNumber(self) -> Number:
         token = self.getToken()

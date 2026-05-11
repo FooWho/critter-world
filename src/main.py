@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 def main():
     lexer = Lexer()
-    tokens = lexer.tokenize('3 = 3')
+    tokens = lexer.tokenize('{7 = (2 * 4) or 4 = 3} and {1 = 1 or 0 = 1}')
     parser = Parser(tokens)
     ast = Program()
     try:

@@ -95,13 +95,13 @@ class TestLexer(unittest.TestCase):
         for i in range(3):
             self.assertEqual(tokens[i].tokenType, TOKENS.T_NUMBER)
             
-        self.assertEqual(tokens[0].lexeme, "0")
-        self.assertEqual(tokens[1].lexeme, "123")
-        self.assertEqual(tokens[2].lexeme, "9999")
+        self.assertEqual(tokens[0].lexeme, '0')
+        self.assertEqual(tokens[1].lexeme, '123')
+        self.assertEqual(tokens[2].lexeme, '9999')
 
     def testLineAndColumnTracking(self):
         lexer = Lexer()
-        tmpStr = "mem[0]\n:= 5\nwait;"
+        tmpStr = 'mem[0]\n:= 5\nwait;'
         tokens: List[Token] = list(lexer.tokenize(tmpStr))
         
         expected_positions = [
@@ -124,14 +124,21 @@ class TestLexer(unittest.TestCase):
 
     def testCommentsAndWhitespaceSkipping(self):
         lexer = Lexer()
-        tmpStr = "ahead[1] // checking ahead\n * 5"
+        tmpStr = 'ahead[1] // checking ahead\n * 5'
         tokens: List[Token] = list(lexer.tokenize(tmpStr))
         
         # The '*' token should be recorded as being on line 1, column 1
         self.assertEqual(tokens[4].tokenType, TOKENS.T_STAR)
         self.assertEqual(tokens[4].line, 1)
+        self.assertEqual(tokens[4].column, 1)
 
     def testMismatchError(self):
         lexer = Lexer()
         with self.assertRaises(CritterParseError):
             list(lexer.tokenize("mem[0] $ 5"))
+
+    def testEmptyString(self):
+        lexer = Lexer()
+        tokens: List[Token] = list(lexer.tokenize(''))
+        self.assertEqual(len(tokens), 1)
+        self.assertEqual(tokens[0].tokenType, TOKENS.T_EOF)

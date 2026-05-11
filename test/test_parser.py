@@ -1,10 +1,10 @@
 import unittest
 from lexer import Lexer
-from parserX import Parser
+from parser import Parser
 from schemas import TOKENS, CritterParseError
 from typing import cast, LiteralString
-from abstractSyntaxTreeX import (
-    MemNode, SensorNode, Number, RelationalOperator, Expression, Term, Factor
+from abstractSyntaxTree import (
+    MemNode, SensorNode, Number, RelationalOperator, LogicalOperator, BinaryOperator, UnaryOperator
 )
 
 class TestParser(unittest.TestCase):
@@ -33,13 +33,9 @@ class TestParser(unittest.TestCase):
         for i in range(len(memStrs)):
             node = parser.parseMemNode()
             self.assertIsInstance(node, MemNode)
-            self.assertIsInstance(node.expression, Expression)
-            self.assertIsInstance(node.expression.expression, Term)
-            node = cast(Term, node.expression.expression)
-            self.assertIsInstance(node.term, Factor)
-            node = cast(Factor, node.term)
-            self.assertIsInstance(node.factor, Number)
-            node = cast(Number, node.factor) 
+            node = node.getValue()
+            self.assertIsInstance(node, Number)
+            node = cast(Number, node)
             tst = self.helperForMemNode(memStrs[i])
             self.assertEqual(node.number.lexeme, tst[0])
             self.assertEqual(node.value, tst[1])
@@ -56,7 +52,9 @@ class TestParser(unittest.TestCase):
             node = parser.parseSensor()          
             self.assertIsInstance(node, SensorNode)
             tst = self.helperForSensorNode(sensorStrs[i])
-            self.assertEqual(node.sensorType, tst[0])
+            self.assertEqual(node.getSensorType().tokenType, tst[0])
+            if node.getSensorType().tokenType is not TOKENS.T_SMELL:
+                self.assertEqual(node.getValue().evaluate(), tst[2])
 
     def helperForSensorNode(self, token: str) -> tuple[TOKENS, str, int]:
         if not token.find('ahead'):
@@ -74,11 +72,11 @@ class TestParser(unittest.TestCase):
             raise ValueError('Token does not have a <Sensor> with <Number> or "smell".')
 
     def testParseRelation(self):
-        parser = self.get_parser("mem[0] >= 5")
+        parser = self.get_parser('mem[0] >= 5')
         node = parser.parseRelation()
         self.assertIsInstance(node, RelationalOperator)
         node = cast(RelationalOperator, node)
-        self.assertEqual(node.operator.lexeme, ">=")
+        self.assertEqual(node.operator.lexeme, '>=')
 
     def testParseExpressionWithAddOps(self):
         parser = self.get_parser("5 + 3 - 2")
@@ -86,6 +84,87 @@ class TestParser(unittest.TestCase):
         self.assertIsNotNone(node)
 
     def testCritterParseErrorInvalidSyntax(self):
-        parser = self.get_parser("mem 5") 
+        parser = self.get_parser('mem 5') 
         with self.assertRaises(CritterParseError):
             parser.parseMemNode()
+
+    def testParseFactorSugar(self):
+        parser = self.get_parser('MEMSIZE DEFENSE OFFENSE')
+        
+        node = parser.parseFactor()
+        self.assertIsInstance(node, MemNode)
+        node = cast(MemNode, node)
+        self.assertEqual(node.getValue().evaluate(), 0)
+        
+        node = parser.parseFactor()
+        self.assertIsInstance(node, MemNode)
+        node = cast(MemNode, node)
+        self.assertEqual(node.getValue().evaluate(), 1)
+        
+        node = parser.parseFactor()
+        self.assertIsInstance(node, MemNode)
+        node = cast(MemNode, node)
+        self.assertEqual(node.getValue().evaluate(), 2)
+
+    def testParseUnaryOperator(self):
+        parser = self.get_parser('-5 -mem[1]')
+        node = parser.parseFactor()
+        self.assertIsInstance(node, UnaryOperator)
+        self.assertEqual(node.evaluate(), -5)
+
+        node = parser.parseFactor()
+        self.assertIsInstance(node, UnaryOperator)
+        node = cast(UnaryOperator, node)
+        self.assertIsInstance(node.operand, MemNode)
+
+    def testParseExpressionPrecedence(self):
+        parser = self.get_parser('2 * 3 + 4')
+        node = parser.parseExpression()
+        self.assertIsInstance(node, BinaryOperator)
+        node = cast(BinaryOperator, node)
+        self.assertEqual(node.operator.lexeme, '+')
+        self.assertEqual(node.evaluate(), 10)
+        parser = self.get_parser('2 * (3 + 4)')
+        node = parser.parseExpression()
+        self.assertEqual(node.evaluate(), 14)
+        parser = self.get_parser('((2 + 4) * 3) * (3 + 4)')
+        node = parser.parseExpression()
+        self.assertEqual(node.evaluate(), 126)
+
+    def testUnbalancedParens(self):
+        with self.assertRaises(CritterParseError):
+            parser = self.get_parser('((2 * 3) + 4')
+            parser.parseExpression()
+            parser = self.get_parser('(2 * 3)) + 4')
+            parser.parseExpression()
+
+    def testParseConditionTrue(self):
+        parser = self.get_parser('1 = 1 and 2 = 2 or 3 = 3')
+        node = parser.parseCondition()
+        self.assertIsInstance(node, LogicalOperator)
+        node = cast(LogicalOperator, node)
+        self.assertEqual(node.operator.tokenType, TOKENS.T_OR)
+        nodeLeft = node.leftOperand
+        nodeRight = node.rightOperand
+        self.assertIsInstance(nodeLeft, LogicalOperator)
+        self.assertEqual(nodeLeft.operator.tokenType, TOKENS.T_AND)
+        self.assertIsInstance(nodeRight, RelationalOperator)
+        self.assertEqual(nodeRight.operator.tokenType, TOKENS.T_EQU)
+        self.assertEqual(node.evaluate(), True)
+
+    def testParseConditionFalse(self):
+        parser = self.get_parser('1 < 1 and 2 = 2 or 3 != 3')
+        node = parser.parseCondition()
+        self.assertIsInstance(node, LogicalOperator)
+        node = cast(LogicalOperator, node)
+        self.assertEqual(node.operator.tokenType, TOKENS.T_OR)
+        nodeLeft = node.leftOperand
+        nodeRight = node.rightOperand
+        self.assertIsInstance(nodeLeft, LogicalOperator)
+        self.assertEqual(nodeLeft.operator.tokenType, TOKENS.T_AND)
+        self.assertIsInstance(nodeRight, RelationalOperator)
+        self.assertEqual(nodeRight.operator.tokenType, TOKENS.T_NEQU)
+        self.assertEqual(node.evaluate(), False)
+
+    def testLogicalPrecedence(self):
+        pass

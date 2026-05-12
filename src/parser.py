@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import Iterator
 from schemas import TOKENS, Token, TokenLexeme, CritterParseError, SET_ADDOPS, SET_MULOPS, SET_RELOPS, SET_SENSORS, SET_SUGAR
-from abstractSyntaxTree import Program, Number, UnaryOperator, MemNode, BinaryOperator, RelationalOperator, LogicalOperator, SensorNode
+from abstractSyntaxTree import Program, Number, UnaryOperator, MemNode, BinaryOperator, RelationalOperator, LogicalOperator, SensorNode, SmellNode, DirectedSensorNode, BooleanOperator, ExpressionNode
 
 class Parser():
 
@@ -29,7 +29,7 @@ class Parser():
         parseTree = program
         return parseTree
     
-    def parseCondition(self) -> LogicalOperator | RelationalOperator:
+    def parseCondition(self) -> BooleanOperator:
         conjunction = self.parseConjunction()
         token = self.peek()
         while token.tokenType is TOKENS.T_OR:
@@ -42,7 +42,7 @@ class Parser():
             token = self.peek()       
         return conjunction
     
-    def parseConjunction(self) -> LogicalOperator | RelationalOperator:
+    def parseConjunction(self) -> BooleanOperator:
 
         relation = self.parseRelation()
         token = self.peek()
@@ -57,7 +57,7 @@ class Parser():
         return relation
 
 
-    def parseRelation(self) -> RelationalOperator|LogicalOperator:
+    def parseRelation(self) -> BooleanOperator:
         token = self.peek()
         relOp = RelationalOperator()
 
@@ -78,7 +78,7 @@ class Parser():
             relOp = RelationalOperator(leftOperand, operator, rightOperand)
         return relOp
 
-    def parseExpression(self) -> Number|MemNode|UnaryOperator|BinaryOperator|SensorNode:
+    def parseExpression(self) -> ExpressionNode:
         expression = self.parseTerm()
         token = self.peek()
         while token.tokenType in SET_ADDOPS:
@@ -91,7 +91,7 @@ class Parser():
             token = self.peek()       
         return expression
     
-    def parseTerm(self) -> Number|MemNode|UnaryOperator|BinaryOperator|SensorNode:
+    def parseTerm(self) -> ExpressionNode:
         term = self.parseFactor()
         token = self.peek()
         while token.tokenType in SET_MULOPS:
@@ -104,7 +104,7 @@ class Parser():
             token = self.peek()
         return term
     
-    def parseFactor(self) -> Number|UnaryOperator|MemNode|BinaryOperator|SensorNode:
+    def parseFactor(self) -> ExpressionNode:
 
         token = self.peek()
         match token.tokenType:
@@ -158,7 +158,7 @@ class Parser():
         sensorToken = self.getToken()
         
         if sensorToken.tokenType is TOKENS.T_SMELL:
-            return SensorNode(sensorToken)
+            return SmellNode(sensorToken)
             
         token = self.getToken()
         if token.tokenType is not TOKENS.T_L_BRACKET:
@@ -169,7 +169,7 @@ class Parser():
         token = self.getToken()
         if token.tokenType is not TOKENS.T_R_BRACKET:
             raise CritterParseError(token, ']')
-        return SensorNode(sensorToken, expression)
+        return DirectedSensorNode(sensorToken, expression)
             
     def parseNumber(self) -> Number:
         token = self.getToken()

@@ -4,7 +4,7 @@ from parser import Parser
 from schemas import TOKENS, CritterParseError
 from typing import cast, LiteralString
 from abstractSyntaxTree import (
-    MemNode, SensorNode, Number, RelationalOperator, LogicalOperator, BinaryOperator, UnaryOperator
+    MemNode, SensorNode, SmellNode, DirectedSensorNode, Number, RelationalOperator, LogicalOperator, BinaryOperator, UnaryOperator
 )
 
 class TestParser(unittest.TestCase):
@@ -53,8 +53,10 @@ class TestParser(unittest.TestCase):
             self.assertIsInstance(node, SensorNode)
             tst = self.helperForSensorNode(sensorStrs[i])
             self.assertEqual(node.getSensorType().tokenType, tst[0])
-            if node.getSensorType().tokenType is not TOKENS.T_SMELL:
+            if isinstance(node, DirectedSensorNode):
                 self.assertEqual(node.getValue().evaluate(), tst[2])
+            elif isinstance(node, SmellNode):
+                self.assertEqual(tst[0], TOKENS.T_SMELL)
 
     def helperForSensorNode(self, token: str) -> tuple[TOKENS, str, int]:
         if not token.find('ahead'):
@@ -147,8 +149,10 @@ class TestParser(unittest.TestCase):
         nodeLeft = node.leftOperand
         nodeRight = node.rightOperand
         self.assertIsInstance(nodeLeft, LogicalOperator)
+        nodeLeft = cast(LogicalOperator, nodeLeft)
         self.assertEqual(nodeLeft.operator.tokenType, TOKENS.T_AND)
         self.assertIsInstance(nodeRight, RelationalOperator)
+        nodeRight = cast(RelationalOperator, nodeRight)
         self.assertEqual(nodeRight.operator.tokenType, TOKENS.T_EQU)
         self.assertEqual(node.evaluate(), True)
 
@@ -161,8 +165,10 @@ class TestParser(unittest.TestCase):
         nodeLeft = node.leftOperand
         nodeRight = node.rightOperand
         self.assertIsInstance(nodeLeft, LogicalOperator)
+        nodeLeft = cast(LogicalOperator, nodeLeft)
         self.assertEqual(nodeLeft.operator.tokenType, TOKENS.T_AND)
         self.assertIsInstance(nodeRight, RelationalOperator)
+        nodeRight = cast(RelationalOperator, nodeRight)
         self.assertEqual(nodeRight.operator.tokenType, TOKENS.T_NEQU)
         self.assertEqual(node.evaluate(), False)
 

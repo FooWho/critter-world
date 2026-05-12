@@ -7,16 +7,16 @@ class AbstractSyntaxTree():
     
 class Program(AbstractSyntaxTree):
 
-    def __init__(self, rootNode: LogicalOperator|RelationalOperator|BinaryOperator|UnaryOperator|Number|MemNode|SensorNode|None = None) -> None:
+    def __init__(self, rootNode: BooleanOperator|ExpressionNode|None = None) -> None:
         self.rootNode = rootNode or Number()
     
     def __str__(self) -> str:
         return str(self.rootNode)
     
-    def setRoot(self, root: LogicalOperator|RelationalOperator|BinaryOperator|UnaryOperator|Number|MemNode|SensorNode) -> None:
+    def setRoot(self, root: BooleanOperator|ExpressionNode) -> None:
         self.rootNode = root
 
-    def getRoot(self) -> LogicalOperator|RelationalOperator|BinaryOperator|UnaryOperator|Number|MemNode|SensorNode:
+    def getRoot(self) -> BooleanOperator|ExpressionNode:
         return self.rootNode
 
 class ASTNode():
@@ -31,12 +31,58 @@ class ASTNode():
             elif isinstance(value, ASTNode):
                 yield value
 
-class LogicalOperator(ASTNode):
+class ExpressionNode(ASTNode):
+    def evaluate(self) -> int:
+        raise NotImplementedError()
+
+class BooleanOperator(ASTNode):
+    def evaluate(self) -> bool:
+        raise NotImplementedError()
+
+class Rule(ASTNode):
+    _children = ('condition', 'command')
+
+class CommandBlock(ASTNode):
+    pass
+
+class Update(ASTNode):
+    pass
+
+class Action(ASTNode):
+    _children = ('actionType',)
+
+    def __init__(self, actionType: Token|None = None) -> None:
+        if actionType:
+            self.actionType = TokenLexeme(actionType.tokenType, actionType.lexeme)
+        else:
+            self.actionType = T_NONE
+
+    def __str__(self) -> str:
+        return f'{self.actionType.lexeme}'
+    
+
+class ServeAction(Action):
+    _children = ('actionType', 'value')
+
+    def __init__(self, actionType: Token|None = None, 
+                 value: ExpressionNode|None = None) -> None:
+        super().__init__(actionType)
+        if value:
+            self.value = value
+        else:
+            self.value = Number()
+
+    def __str__(self) -> str:
+        return f'serve[{str(self.value)}]'
+
+
+
+class LogicalOperator(BooleanOperator):
     _children = ('leftOperand', 'operator', 'rightOperand')
 
-    def __init__(self, leftOperand: RelationalOperator|LogicalOperator|None = None, 
+    def __init__(self, leftOperand: BooleanOperator|None = None, 
                  operator: TokenLexeme = T_NONE, 
-                 rightOperand: RelationalOperator|LogicalOperator|None = None) -> None:  
+                 rightOperand: BooleanOperator|None = None) -> None:  
             
         self.leftOperand = leftOperand or RelationalOperator()
         self.operator = operator
@@ -59,13 +105,13 @@ class LogicalOperator(ASTNode):
 
         return  tmpStr
 
-    def setLeftOperand(self, operand: RelationalOperator|LogicalOperator) -> None:
+    def setLeftOperand(self, operand: BooleanOperator) -> None:
         self.leftOperand = operand
 
     def setOperator(self, operator: TokenLexeme) -> None:
         self.operator = operator
 
-    def setRightOperand(self, operand: RelationalOperator|LogicalOperator) -> None:
+    def setRightOperand(self, operand: BooleanOperator) -> None:
         self.rightOperand = operand
 
     def evaluate(self) -> bool:
@@ -77,19 +123,19 @@ class LogicalOperator(ASTNode):
             case _:
                 raise ValueError(f'Expected <LogicalOperator> in evaluation. Saw: "{self.operator.lexeme}"')
             
-    def breakingPrecedence(self, operand: RelationalOperator|LogicalOperator):
+    def breakingPrecedence(self, operand: BooleanOperator):
         if (isinstance(self.leftOperand, LogicalOperator) and 
             (self.operator.tokenType is TOKENS.T_AND and 
              self.leftOperand.operator.tokenType is TOKENS.T_OR)):
             return True
         return False
 
-class RelationalOperator(ASTNode):
+class RelationalOperator(BooleanOperator):
     _children = ('leftOperand', 'operator', 'rightOperand')
 
-    def __init__(self, leftOperand: UnaryOperator|MemNode|Number|BinaryOperator|SensorNode|None = None, 
+    def __init__(self, leftOperand: ExpressionNode|None = None, 
                  operator: TokenLexeme = T_NONE, 
-                 rightOperand: UnaryOperator|MemNode|Number|BinaryOperator|SensorNode|None = None) -> None:      
+                 rightOperand: ExpressionNode|None = None) -> None:      
         self.leftOperand = leftOperand or Number()
         self.operator = operator
         self.rightOperand = rightOperand or Number()
@@ -97,13 +143,13 @@ class RelationalOperator(ASTNode):
     def __str__(self) -> str:
         return str(self.leftOperand) + ' ' + self.operator.lexeme + ' ' + str(self.rightOperand)
 
-    def setLeftOperand(self, operand: UnaryOperator|MemNode|Number|BinaryOperator|SensorNode) -> None:
+    def setLeftOperand(self, operand: ExpressionNode) -> None:
         self.leftOperand = operand
 
     def setOperator(self, operator: TokenLexeme) -> None:
         self.operator = operator
 
-    def setRightOperand(self, operand: UnaryOperator|MemNode|Number|BinaryOperator|SensorNode) -> None:
+    def setRightOperand(self, operand: ExpressionNode) -> None:
         self.rightOperand = operand
 
     def evaluate(self) -> bool:
@@ -124,12 +170,12 @@ class RelationalOperator(ASTNode):
                 raise ValueError(f'Expected <RelationalOperator> in evaluation. Saw: "{self.operator.lexeme}"')
 
 
-class BinaryOperator(ASTNode):
+class BinaryOperator(ExpressionNode):
     _children = ('leftOperand', 'operator', 'rightOperand')
 
-    def __init__(self, leftOperand: UnaryOperator|MemNode|Number|BinaryOperator|SensorNode|None = None, 
+    def __init__(self, leftOperand: ExpressionNode|None = None, 
                  operator: TokenLexeme = T_NONE, 
-                 rightOperand: UnaryOperator|MemNode|Number|BinaryOperator|SensorNode|None = None) -> None:      
+                 rightOperand: ExpressionNode|None = None) -> None:      
         self.leftOperand = leftOperand or Number()
         self.operator = operator
         self.rightOperand = rightOperand or Number()
@@ -150,13 +196,13 @@ class BinaryOperator(ASTNode):
 
         return tmpStr
 
-    def setLeftOperand(self, operand: UnaryOperator|MemNode|Number|BinaryOperator|SensorNode) -> None:
+    def setLeftOperand(self, operand: ExpressionNode) -> None:
         self.leftOperand = operand
 
     def setOperator(self, operator: TokenLexeme) -> None:
         self.operator = operator
 
-    def setRightOperand(self, operand: UnaryOperator|MemNode|Number|BinaryOperator|SensorNode) -> None:
+    def setRightOperand(self, operand: ExpressionNode) -> None:
         self.rightOperand = operand
     
     def evaluate(self) -> int:
@@ -182,17 +228,17 @@ class BinaryOperator(ASTNode):
             case _:
                 raise ValueError(f'Expected <BinaryOperator> in evaluation. Saw: "{self.operator.lexeme}"')
             
-    def breakingPrecedence(self, operand: UnaryOperator|MemNode|Number|BinaryOperator|SensorNode) -> bool:
+    def breakingPrecedence(self, operand: ExpressionNode) -> bool:
         if (isinstance(operand, BinaryOperator) and 
             (self.operator.tokenType in SET_MULOPS and 
              operand.operator.tokenType in SET_ADDOPS)):
             return True
         return False
 
-class UnaryOperator(ASTNode):
+class UnaryOperator(ExpressionNode):
     _children = ('operator', 'operand')
 
-    def __init__(self, operator: TokenLexeme = T_NONE, operand: UnaryOperator|Number|MemNode|BinaryOperator|SensorNode|None = None) -> None:
+    def __init__(self, operator: TokenLexeme = T_NONE, operand: ExpressionNode|None = None) -> None:
         self.operator = operator
         self.operand = operand or Number()
 
@@ -202,7 +248,7 @@ class UnaryOperator(ASTNode):
     def setOperator(self, operator: TokenLexeme) -> None:
         self.operator = operator
 
-    def setOperand(self, operand: UnaryOperator|Number|MemNode|BinaryOperator|SensorNode) -> None:
+    def setOperand(self, operand: ExpressionNode) -> None:
         self.operand = operand
 
     def evaluate(self) -> int:
@@ -212,7 +258,7 @@ class UnaryOperator(ASTNode):
             case _:
                 raise ValueError(f'Expected <UnaryOperator> in evaluation. Saw: "{self.operator.lexeme}"')
 
-class Number(ASTNode):
+class Number(ExpressionNode):
     _children = ('number',)
 
     def __init__(self, number: Token|None = None) -> None:
@@ -229,16 +275,16 @@ class Number(ASTNode):
     def evaluate(self) -> int:
         return self.value
 
-class MemNode(ASTNode):
+class MemNode(ExpressionNode):
     _children = ('value', )
 
-    def __init__(self, value: Number|MemNode|UnaryOperator|BinaryOperator|SensorNode|None = None) -> None:
+    def __init__(self, value: ExpressionNode|None = None) -> None:
         self.value = value or Number()
 
-    def setValue(self, value: Number|MemNode|UnaryOperator|BinaryOperator|SensorNode) -> None:
+    def setValue(self, value: ExpressionNode) -> None:
         self.value = value
 
-    def getValue(self) -> Number|MemNode|UnaryOperator|BinaryOperator|SensorNode:
+    def getValue(self) -> ExpressionNode:
         return self.value
 
     def __str__(self) -> str:
@@ -270,41 +316,46 @@ class MemNode(ASTNode):
         memNode = MemNode(number)
         return memNode
     
-class SensorNode(ASTNode):
-    _children = ('sensorType', 'value')
+class SensorNode(ExpressionNode):
+    _children = ('sensorType',)
 
-    def __init__(self, sensorType: Token|None = None, value: Number|MemNode|UnaryOperator|BinaryOperator|SensorNode|None = None) -> None:
+    def __init__(self, sensorType: Token|None = None) -> None:
         if sensorType:
             self.sensorType = TokenLexeme(sensorType.tokenType, sensorType.lexeme)
         else:
             self.sensorType = T_NONE
-        if self.sensorType.tokenType is not TOKENS.T_SMELL:
-            self.value = value or Number()
-        elif value:
-            raise ValueError(f'Unexpected value = {value} for <Sensor> type <Smell>')
 
     def setSensorType(self, sensorType: Token) -> None:
         self.sensorType = TokenLexeme(sensorType.tokenType, sensorType.lexeme)
 
     def getSensorType(self) -> TokenLexeme:
         return self.sensorType
-    
-    def setValue(self, value: Number|MemNode|UnaryOperator|BinaryOperator|SensorNode) -> None:
-        if self.sensorType.tokenType is not TOKENS.T_SMELL:
-            self.value = value
-        else:
-            raise ValueError(f'Unexpected value = {value} for <Sensor> type <Smell>')
-
-    def getValue(self) -> Number|MemNode|UnaryOperator|BinaryOperator|SensorNode:
-        if self.sensorType.tokenType is not TOKENS.T_SMELL:
-            return self.value
-        else:
-            raise ValueError(f'Cannot return value for <Sensor> type <Smell>')
 
     def __str__(self) -> str:
-        if self.sensorType.tokenType is TOKENS.T_SMELL:
-            return f'{self.sensorType.lexeme}'
+        return f'{self.sensorType.lexeme}'
+    
+    def evaluate(self) -> int:
+        return 0
+    
+class DirectedSensorNode(SensorNode):
+    _children = ('sensorType', 'value')
+
+    def __init__(self, sensorType: Token|None = None, value: ExpressionNode|None = None) -> None:
+        super().__init__(sensorType)
+
+        self.value = value or Number()
+
+    def setValue(self, value: ExpressionNode) -> None:
+        self.value = value
+
+    def getValue(self) -> ExpressionNode:
+        return self.value
+
+    def __str__(self) -> str:
         return f'{self.sensorType.lexeme}[{self.value}]'
     
     def evaluate(self) -> int:
         return 0
+    
+class SmellNode(SensorNode):
+    pass

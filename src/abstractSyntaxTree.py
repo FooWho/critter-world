@@ -43,12 +43,37 @@ class Rule(ASTNode):
     _children = ('condition', 'command')
 
 class CommandBlock(ASTNode):
-    pass
+    _children = ('statements',)
 
-class Update(ASTNode):
-    pass
+    def __init__(self, commands: list[Command]|None = None) -> None:
+        self.commands = commands or []
 
-class Action(ASTNode):
+    def addStatement(self, statement: Command) -> None:
+        if isinstance(self.commands[-1], Action):
+            raise ValueError('<CommandBlock> not allowed to have <Statement> following a terminal <Action>.')
+        self.commands.append
+
+    def __str__(self) -> str:
+        return '     '.join((str(command) + '\n' for command in self.commands))
+        
+
+class Command(ASTNode):
+    def __str__(self) -> str:
+        raise NotImplementedError()
+
+class Update(Command):
+    _children = ('destination', 'source')
+
+    def __init__(self, destination: MemNode|None = None, source: ExpressionNode|None = None) -> None:
+        self.destination = destination or MemNode()
+        self.source = source or ExpressionNode()
+
+    def __str__(self) -> str:
+        return f'{self.destination} := {self.source}'
+
+    
+
+class Action(Command):
     _children = ('actionType',)
 
     def __init__(self, actionType: Token|None = None) -> None:

@@ -43,7 +43,6 @@ class Parser():
         return conjunction
     
     def parseConjunction(self) -> BooleanOperator:
-
         relation = self.parseRelation()
         token = self.peek()
         while token.tokenType is TOKENS.T_AND:
@@ -105,7 +104,6 @@ class Parser():
         return term
     
     def parseFactor(self) -> ExpressionNode:
-
         token = self.peek()
         match token.tokenType:
             case TOKENS.T_MEM:

@@ -1,7 +1,8 @@
 from __future__ import annotations
 from typing import Iterator
-from schemas import TOKENS, Token, TokenLexeme, CritterParseError, SET_ADDOPS, SET_MULOPS, SET_RELOPS, SET_SENSORS, SET_SUGAR
-from abstractSyntaxTree import Program, Number, UnaryOperator, MemNode, BinaryOperator, RelationalOperator, LogicalOperator, SensorNode, SmellNode, DirectedSensorNode, BooleanOperator, ExpressionNode
+from schemas import TOKENS, Token, TokenLexeme, CritterParseError, SET_ADDOPS, SET_MULOPS, SET_RELOPS, SET_SENSORS, SET_SUGAR, SET_ACTIONS
+from abstractSyntaxTree import (Program, Number, UnaryOperator, MemNode, BinaryOperator, RelationalOperator, LogicalOperator, 
+    SensorNode, SmellNode, DirectedSensorNode, BooleanOperator, ExpressionNode, Command, CommandBlock, Update, Action, ServeAction, Rule)
 
 class Parser():
 
@@ -22,12 +23,77 @@ class Parser():
 
         token = self.peek()
         while token.tokenType is not TOKENS.T_EOF:
-            obj = self.parseCondition()
-            program.setRoot(obj)
+            rule = self.parseRule()
+            program.addRule(rule)
             token = self.peek()
 
-        parseTree = program
-        return parseTree
+        return program
+    
+    def parseRule(self) -> Rule:
+        condition = self.parseCondition()
+        token = self.getToken()
+        if token.tokenType is not TOKENS.T_COMM:
+            raise CritterParseError(token, '-->')
+        commandBlock = self.parseCommandBlock()
+        return Rule(condition, commandBlock)
+
+    
+    def parseCommandBlock(self) -> CommandBlock:
+        commands = CommandBlock()
+        command = self.parseCommand()
+        commands.firstCommand(command)
+        token = self.peek()
+        while token.tokenType is not TOKENS.T_SEMICOLON:
+            command = self.parseCommand()
+            commands.addCommand(command)
+            token = self.peek()
+        token = self.getToken()
+        return commands
+
+
+    def parseCommand(self) -> Command:
+        token = self.peek()
+        match token.tokenType:
+            case toke if toke in SET_SUGAR | {TOKENS.T_MEM}:
+                command = self.parseUpdate()
+            case toke if toke in SET_ACTIONS:
+                command = self.parseAction()
+            case _:
+                raise CritterParseError(token, '<Update>, <Action>, or ";"')
+        return command
+            
+    def parseAction(self) -> Command:
+        token = self.peek()
+        match token.tokenType:
+            case TOKENS.T_SERVE:
+                action = self.parseServeAction()
+            case toke if toke in (SET_ACTIONS - {TOKENS.T_SERVE}):
+                token = self.getToken()
+                action = Action(token)
+            case _:
+                raise CritterParseError(token, '<Action>')      
+        return action
+            
+    def parseServeAction(self) -> Command:
+        serve_token = self.getToken()
+        token = self.getToken()
+        if token.tokenType is not TOKENS.T_L_BRACKET:
+            raise CritterParseError(token, '[')
+        expression = self.parseExpression()
+        token = self.getToken()
+        if token.tokenType is not TOKENS.T_R_BRACKET:
+            raise CritterParseError(token, ']')
+        serveAction = ServeAction(serve_token, expression)
+        return serveAction
+    
+    def parseUpdate(self) -> Command:
+        memNode = self.parseMemNode()
+        token = self.getToken()
+        if token.tokenType is not TOKENS.T_ASSIGN:
+            raise CritterParseError(token, ':=')
+        expression = self.parseExpression()
+        return Update(memNode, expression)
+
     
     def parseCondition(self) -> BooleanOperator:
         conjunction = self.parseConjunction()
@@ -58,60 +124,50 @@ class Parser():
 
     def parseRelation(self) -> BooleanOperator:
         token = self.peek()
-        relOp = RelationalOperator()
 
         if token.tokenType is TOKENS.T_L_BRACE:
-            token = self.getToken()
+            self.getToken()
             innerCondition = self.parseCondition()
             token = self.getToken()
             if token.tokenType is not TOKENS.T_R_BRACE:
                 raise CritterParseError(token, '}')
             return innerCondition
-        else:
-            leftOperand = self.parseExpression()
-            operatorToken = self.getToken()
-            if operatorToken.tokenType not in SET_RELOPS:
-                raise CritterParseError(operatorToken, '<RelationalOperator>')
-            operator = TokenLexeme(operatorToken.tokenType, operatorToken.lexeme)
-            rightOperand = self.parseExpression()
-            relOp = RelationalOperator(leftOperand, operator, rightOperand)
-        return relOp
+
+        leftOperand = self.parseExpression()
+        operatorToken = self.getToken()
+        if operatorToken.tokenType not in SET_RELOPS:
+            raise CritterParseError(operatorToken, '<RelationalOperator>')
+        operator = TokenLexeme(operatorToken.tokenType, operatorToken.lexeme)
+        rightOperand = self.parseExpression()
+        return RelationalOperator(leftOperand, operator, rightOperand)
 
     def parseExpression(self) -> ExpressionNode:
         expression = self.parseTerm()
-        token = self.peek()
-        while token.tokenType in SET_ADDOPS:
+        while self.peek().tokenType in SET_ADDOPS:
             op = self.getToken()
             binOp = BinaryOperator()
             binOp.setLeftOperand(expression)
             binOp.setOperator(TokenLexeme(op.tokenType, op.lexeme))
             binOp.setRightOperand(self.parseTerm())
             expression = binOp
-            token = self.peek()       
         return expression
     
     def parseTerm(self) -> ExpressionNode:
         term = self.parseFactor()
-        token = self.peek()
-        while token.tokenType in SET_MULOPS:
+        while self.peek().tokenType in SET_MULOPS:
             op = self.getToken()
             binOp = BinaryOperator()
             binOp.setLeftOperand(term)
             binOp.setOperator(TokenLexeme(op.tokenType, op.lexeme))
             binOp.setRightOperand(self.parseFactor())
             term = binOp
-            token = self.peek()
         return term
     
     def parseFactor(self) -> ExpressionNode:
         token = self.peek()
         match token.tokenType:
-            case TOKENS.T_MEM:
+            case toke if toke in SET_SUGAR | {TOKENS.T_MEM}:
                 memNode = self.parseMemNode()
-                return memNode
-            case sugar if sugar in SET_SUGAR:
-                token = self.getToken()
-                memNode = MemNode.desugar(token)
                 return memNode
             case sensor if sensor in SET_SENSORS: 
                 sensorNode = self.parseSensor()
@@ -137,13 +193,17 @@ class Parser():
             
     def parseMemNode(self) -> MemNode:
         token = self.peek()
-        if token.tokenType is not TOKENS.T_MEM:
-            raise CritterParseError(token, 'mem')
-        token = self.getToken()
+        if token.tokenType in SET_SUGAR:
+            token = self.getToken()
+            return MemNode.desugar(token)
+
+        self.getToken()
+
         token = self.getToken()
         if token.tokenType is not TOKENS.T_L_BRACKET:
             raise CritterParseError(token, '[')
         expression = self.parseExpression()
+
         token = self.getToken()
         if token.tokenType is not TOKENS.T_R_BRACKET:
             raise CritterParseError(token, ']')

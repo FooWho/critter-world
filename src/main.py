@@ -1,21 +1,21 @@
 from lexer import Lexer
 from schemas import CritterParseError
 from parser import Parser
-from abstractSyntaxTree import Program
+from abstractSyntaxTree import Program, Rule, Command, CommandBlock
 from typing import TYPE_CHECKING
 
 def main():
     lexer = Lexer()
-    tokens = lexer.tokenize('ahead[2] = 3')
+    with open('test/critter1.crtr', 'r', encoding='utf-8') as file:
+        content = file.read() 
+    tokens = lexer.tokenize(content)
     parser = Parser(tokens)
     ast = Program()
     try:
         ast = parser.parse()
     except CritterParseError as cpe:
         print(cpe)
-
-    print(f'{ast.getRoot()} := {ast.getRoot().evaluate()}')
-    #print(f'{ast.getRoot()}')
+    print(str(ast))
     print('Ok')
 
 

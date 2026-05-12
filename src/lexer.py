@@ -37,7 +37,6 @@ class Lexer():
                     lineStart = tc.end()
                 continue
             elif tokenType == TOKENS.T_COMMENT:
-                lineNumber += lexeme.count('\n')
                 lineStart = tc.end()
                 continue
             elif tokenType == TOKENS.T_MISMATCH:
@@ -54,4 +53,3 @@ class Lexer():
     def emitLexemeTokenPair(self, loc: str) -> list[TokenLexeme]:
         return [TokenLexeme(token.tokenType, token.lexeme) for token in self.tokenize(loc)]
     
-

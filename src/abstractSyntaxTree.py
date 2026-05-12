@@ -5,19 +5,6 @@ from schemas import TokenLexeme, TOKENS, Token, SET_MULOPS, SET_ADDOPS, T_NONE
 class AbstractSyntaxTree():
     pass
     
-class Program(AbstractSyntaxTree):
-
-    def __init__(self, rootNode: BooleanOperator|ExpressionNode|None = None) -> None:
-        self.rootNode = rootNode or Number()
-    
-    def __str__(self) -> str:
-        return str(self.rootNode)
-    
-    def setRoot(self, root: BooleanOperator|ExpressionNode) -> None:
-        self.rootNode = root
-
-    def getRoot(self) -> BooleanOperator|ExpressionNode:
-        return self.rootNode
 
 class ASTNode():
     _children: ClassVar[tuple[str, ...]] = ()
@@ -31,6 +18,21 @@ class ASTNode():
             elif isinstance(value, ASTNode):
                 yield value
 
+class Program(ASTNode):
+    _children = ('rules', )
+
+    def __init__(self, rules: list[Rule]|None = None) -> None:
+        self.rules = rules or []
+    
+    def __str__(self) -> str:
+        return '\n'.join(str(rule) for rule in self.rules)
+    
+    def addRule(self, rule: Rule) -> None:
+        self.rules.append(rule)
+
+    def getRules(self) -> list[Rule]:
+        return self.rules
+
 class ExpressionNode(ASTNode):
     def evaluate(self) -> int:
         raise NotImplementedError()
@@ -40,21 +42,48 @@ class BooleanOperator(ASTNode):
         raise NotImplementedError()
 
 class Rule(ASTNode):
-    _children = ('condition', 'command')
+    _children = ('condition', 'commandBlock')
+
+    def __init__(self, condition: BooleanOperator|None = None, commandBlock: CommandBlock|None = None) -> None:
+        self.condition = condition or BooleanOperator()
+        self.commandBlock = commandBlock or CommandBlock()
+
+    def __str__(self) -> str:
+        return f'{str(self.condition)} --> \n     {str(self.commandBlock)};\n'
+    
+    def setRule(self, condition: BooleanOperator, commandBlock: CommandBlock) -> None:
+        self.condition = condition
+        self.commandBlock = commandBlock
+
+    def setCondition(self, condition: BooleanOperator) -> None:
+        self.condition = condition
+    
+    def setCommandBlock(self, commandBlock: CommandBlock) -> None:
+        self.commandBlock = commandBlock
+
+    def addCommand(self, command: Command) -> None:
+        self.commandBlock.addCommand(command)
 
 class CommandBlock(ASTNode):
-    _children = ('statements',)
+    _children = ('commands',)
 
     def __init__(self, commands: list[Command]|None = None) -> None:
         self.commands = commands or []
 
-    def addStatement(self, statement: Command) -> None:
-        if isinstance(self.commands[-1], Action):
-            raise ValueError('<CommandBlock> not allowed to have <Statement> following a terminal <Action>.')
-        self.commands.append
+    def firstCommand(self, command: Command) -> None:
+        if self.commands:
+            raise ValueError('FirstCommand called for CommandBlock with existing commands.')
+        self.commands.append(command)
+
+    def addCommand(self, command: Command) -> None:
+        if self.commands and isinstance(self.commands[-1], Action):
+            raise ValueError('<CommandBlock> not allowed to have <Command> following a terminal <Action>.')
+        self.commands.append(command)
 
     def __str__(self) -> str:
-        return '     '.join((str(command) + '\n' for command in self.commands))
+        result = '\n     '.join(map(str, self.commands))
+        return f'{result}'
+    
         
 
 class Command(ASTNode):
@@ -70,8 +99,17 @@ class Update(Command):
 
     def __str__(self) -> str:
         return f'{self.destination} := {self.source}'
-
     
+    def setUpdate(self, destination: MemNode, source: ExpressionNode) -> None:
+        self.destination = destination
+        self.source = source
+
+    def setDestination(self, destination: MemNode) -> None:
+        self.destination = destination
+
+    def setSource(self, source: ExpressionNode) -> None:
+        self.source = source
+
 
 class Action(Command):
     _children = ('actionType',)
@@ -148,10 +186,10 @@ class LogicalOperator(BooleanOperator):
             case _:
                 raise ValueError(f'Expected <LogicalOperator> in evaluation. Saw: "{self.operator.lexeme}"')
             
-    def breakingPrecedence(self, operand: BooleanOperator):
-        if (isinstance(self.leftOperand, LogicalOperator) and 
+    def breakingPrecedence(self, operand: BooleanOperator) -> bool:
+        if (isinstance(operand, LogicalOperator) and 
             (self.operator.tokenType is TOKENS.T_AND and 
-             self.leftOperand.operator.tokenType is TOKENS.T_OR)):
+             operand.operator.tokenType is TOKENS.T_OR)):
             return True
         return False
 
@@ -313,7 +351,9 @@ class MemNode(ExpressionNode):
         return self.value
 
     def __str__(self) -> str:
-        return f'mem[{self.value}]'
+        if isinstance(self.value, Number):
+            return MemNode.resugar(self.value.evaluate())
+        return f'mem[{str(self.value)}]'
     
     def evaluate(self) -> int:
         return 0
@@ -340,6 +380,26 @@ class MemNode(ExpressionNode):
 
         memNode = MemNode(number)
         return memNode
+    
+    @staticmethod
+    def resugar(value: int) -> str:
+        match value:
+            case 0:
+                return 'MEMSIZE'
+            case 1:
+                return 'DEFENSE'
+            case 2:
+                return 'OFFENSE'
+            case 3:
+                return 'SIZE'
+            case 4:
+                return 'ENERGY'
+            case 5:
+                return 'PASS'
+            case 6:
+                return 'POSTURE'
+            case _:
+                return f'mem[{value}]'
     
 class SensorNode(ExpressionNode):
     _children = ('sensorType',)

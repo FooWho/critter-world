@@ -1,0 +1,48 @@
+from __future__ import annotations
+import random, math
+from abstractSyntaxTree import Program
+
+class Mutator:
+
+    def __init__(self, mutationProbability: float = 0.0) -> None:
+        self.mutationProbability = mutationProbability
+
+    def get_heavy_tail_random(self):
+        u = random.random()
+        if u == 0: u = 0.0001
+        val = 1.0 / u
+        result = (val * 0.4) - 0.5
+        sign = 1 if random.random() > 0.5 else -1
+        return math.floor(result) * sign
+
+    def mutate(self, program: Program) -> Program:
+        """
+        From the original:
+        1. Remove: The node, along with all its descendants, is removed. If the parent of the node being removed
+           needs a replacement child, one of the node's direct children of the correct kind is randomly selected. 
+           For example, a rule node is simply removed, whereas a binary operation node would be replaced with either
+           its left or its right child. Note that a legal program must contain at least one rule.
+        2. Swap: The order of two children of the node is switched. For example, this allows swapping the positions 
+           of two rules, or changing a - b to b - a.
+        3. Replace: The node and its descendants are replaced with a randomly selected subtree of the right kind.
+           Randomly selected subtrees are chosen from somewhere in the current AST. The entire AST subtree
+           rooted at the selected node is cloned (deep-copied).
+        4. Transform: The node is replaced with a random, newly created node of the same kind (for example,
+           replacing attack with eat, or + with *), but its children remain the same. Literal integer constants are
+           randomly adjusted up or down by the value of java.lang.Integer.MAX_VALUE/r.nextInt(), where
+           legal, assuming that r is an object of class java.util.Random.
+        5. Insert: A newly created node is inserted as the parent of the mutated node. The old parent of the
+           mutated node becomes the parent of the inserted node, and the mutated node becomes a child of the
+           inserted node. If the inserted node requires more than one child, the children that are not the original
+           node are copies of randomly chosen nodes of the right kind from the entire rule set.
+        6. Duplicate: For nodes with a variable number of children, a randomly selected subtree of the right type
+           (as in Replace mutations) is appended to the end of the list of children. This applies to the root node,
+           where a new rule can be added, and also to command nodes, where the sequence of updates can be
+           extended with another update.
+
+        On rule 4, Transform, I am going to make a modification to the original spec. They want to shift integer
+        contstants up or down by a random value that could be large but is going to be heavily clustered around
+        [-1,0,1]
+        """
+        return Program()
+

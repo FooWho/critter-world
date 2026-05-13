@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import Any, ClassVar, Iterator
 from schemas import TokenLexeme, TOKENS, Token, SET_MULOPS, SET_ADDOPS, T_NONE
 import copy
-import random
+
 
 class AbstractSyntaxTree():
     
@@ -15,27 +15,10 @@ class AbstractSyntaxTree():
     def getRoot(self) -> Program:
         return self.rootNode
     
-    def copyAST(self, mutationProbability: float = 0.0) -> AbstractSyntaxTree:
+    def copyProgram(self) -> Program:
         program = copy.deepcopy(self.rootNode)
-        if (random.random() < mutationProbability):
-            if (random.random() < 0.50):
-                # Attribute mutation
-                attribute = random.randint(0, 2)
-                match attribute:
-                    case 0:
-                        # Memsize
-                        pass
-                    case 1:
-                        # Offense
-                        pass
-                    case 2:
-                        # Defense
-                        pass
-            else:
-                # Rule mutation
-                pass
 
-        return AbstractSyntaxTree(program)
+        return program
     
 class ASTNode():
     _children: ClassVar[tuple[str, ...]] = ()

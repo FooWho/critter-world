@@ -3,6 +3,8 @@ from schemas import CritterParseError, Token, TOKENS
 from parser import Parser
 from abstractSyntaxTree import AbstractSyntaxTree, Program, Rule, Command, CommandBlock, Number
 from typing import TYPE_CHECKING
+from mutator import Mutator
+
 
 def main():
     lexer = Lexer()
@@ -21,6 +23,9 @@ def main():
         exit(1)
     print(str(ast.getRoot()))
     print('* Ok *')
+    mutator = Mutator()
+    for i in range(0, 1000):
+        print(mutator.get_heavy_tail_random())
 
 
 if __name__ == "__main__":

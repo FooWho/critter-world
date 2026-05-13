@@ -8,7 +8,7 @@ class TOKENS(StrEnum):
     T_OFFENSE = r'\bOFFENSE\b'
     T_SIZE = r'\bSIZE\b'
     T_ENERGY = r'\bENERGY\b'
-    T_PASS = r'\bPASS'
+    T_PASS = r'\bPASS\b'
     T_POSTURE = r'\bPOSTURE\b'
     T_COMMENT = r'//.*'
     T_COMM = r'-->'

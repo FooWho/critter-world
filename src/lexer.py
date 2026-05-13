@@ -40,7 +40,7 @@ class Lexer():
                 lineStart = tc.end()
                 continue
             elif tokenType == TOKENS.T_MISMATCH:
-                raise CritterParseError(Token(TOKENS.T_MISMATCH, lexeme, lineNumber, lineStart), '<Any Valid Token>')
+                raise CritterParseError(Token(TOKENS.T_MISMATCH, lexeme, lineNumber, column), '<Any Valid Token>')
             yield Token(tokenType, lexeme, lineNumber, column)
 
 

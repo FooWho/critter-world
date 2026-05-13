@@ -3,7 +3,15 @@ from typing import Any, ClassVar, Iterator
 from schemas import TokenLexeme, TOKENS, Token, SET_MULOPS, SET_ADDOPS, T_NONE
 
 class AbstractSyntaxTree():
-    pass
+    
+    def __init__(self, rootNode: Program|None = None) -> None:
+        self.rootNode = rootNode or Program()
+
+    def setRoot(self, rootNode: Program) -> None:
+        self.rootNode = rootNode
+
+    def getRoot(self) -> Program:
+        return self.rootNode
     
 
 class ASTNode():

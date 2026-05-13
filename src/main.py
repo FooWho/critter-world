@@ -1,7 +1,7 @@
 from lexer import Lexer
 from schemas import CritterParseError
 from parser import Parser
-from abstractSyntaxTree import Program, Rule, Command, CommandBlock
+from abstractSyntaxTree import AbstractSyntaxTree, Program, Rule, Command, CommandBlock
 from typing import TYPE_CHECKING
 
 def main():
@@ -10,12 +10,13 @@ def main():
         content = file.read() 
     tokens = lexer.tokenize(content)
     parser = Parser(tokens)
-    ast = Program()
+    Program()
     try:
-        ast = parser.parse()
+        ast = AbstractSyntaxTree(parser.parse())
     except CritterParseError as cpe:
         print(cpe)
-    print(str(ast))
+        exit(1)
+    print(str(ast.getRoot()))
     print('Ok')
 
 

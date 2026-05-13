@@ -21,6 +21,7 @@ class Parser():
     def parse(self) -> Program:
         program = Program()
 
+        program.addRule(self.parseRule())
         token = self.peek()
         while token.tokenType is not TOKENS.T_EOF:
             rule = self.parseRule()
@@ -44,6 +45,8 @@ class Parser():
         commands.firstCommand(command)
         token = self.peek()
         while token.tokenType is not TOKENS.T_SEMICOLON:
+            if isinstance(command, Action):
+                raise CritterParseError(token, ';')
             command = self.parseCommand()
             commands.addCommand(command)
             token = self.peek()

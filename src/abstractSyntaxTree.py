@@ -1,6 +1,8 @@
 from __future__ import annotations
 from typing import Any, ClassVar, Iterator
 from schemas import TokenLexeme, TOKENS, Token, SET_MULOPS, SET_ADDOPS, T_NONE
+import copy
+import random
 
 class AbstractSyntaxTree():
     
@@ -13,7 +15,28 @@ class AbstractSyntaxTree():
     def getRoot(self) -> Program:
         return self.rootNode
     
+    def copyAST(self, mutationProbability: float = 0.0) -> AbstractSyntaxTree:
+        program = copy.deepcopy(self.rootNode)
+        if (random.random() < mutationProbability):
+            if (random.random() < 0.50):
+                # Attribute mutation
+                attribute = random.randint(0, 2)
+                match attribute:
+                    case 0:
+                        # Memsize
+                        pass
+                    case 1:
+                        # Offense
+                        pass
+                    case 2:
+                        # Defense
+                        pass
+            else:
+                # Rule mutation
+                pass
 
+        return AbstractSyntaxTree(program)
+    
 class ASTNode():
     _children: ClassVar[tuple[str, ...]] = ()
 
@@ -57,7 +80,7 @@ class Rule(ASTNode):
         self.commandBlock = commandBlock or CommandBlock()
 
     def __str__(self) -> str:
-        return f'{str(self.condition)} --> \n     {str(self.commandBlock)};\n'
+        return f'{str(self.condition)} --> \n     {str(self.commandBlock)}\n     ;\n'
     
     def setRule(self, condition: BooleanOperator, commandBlock: CommandBlock) -> None:
         self.condition = condition
@@ -330,7 +353,7 @@ class UnaryOperator(ExpressionNode):
                 raise ValueError(f'Expected <UnaryOperator> in evaluation. Saw: "{self.operator.lexeme}"')
 
 class Number(ExpressionNode):
-    _children = ('number',)
+    _children = ('number', 'value')
 
     def __init__(self, number: Token|None = None) -> None:
         if number:

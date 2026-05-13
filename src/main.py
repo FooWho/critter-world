@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 def main():
     lexer = Lexer()
+    
     with open('test/critter1.crtr', 'r', encoding='utf-8') as file:
         content = file.read() 
     tokens = lexer.tokenize(content)

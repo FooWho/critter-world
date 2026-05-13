@@ -134,11 +134,13 @@ class TestParser(unittest.TestCase):
         self.assertEqual(node.evaluate(), 126)
 
     def testUnbalancedParens(self):
+        parser = self.get_parser('((2 * 3) + 4')
         with self.assertRaises(CritterParseError):
-            parser = self.get_parser('((2 * 3) + 4')
             parser.parseExpression()
-            parser = self.get_parser('(2 * 3)) + 4')
-            parser.parseExpression()
+
+        parser = self.get_parser('(2 * 3)) + 4 > 5')
+        with self.assertRaises(CritterParseError):
+            parser.parseRelation()
 
     def testParseConditionTrue(self):
         parser = self.get_parser('1 = 1 and 2 = 2 or 3 = 3')
@@ -179,3 +181,4 @@ class TestParser(unittest.TestCase):
         parser = self.get_parser('{1 = 1 or 2 = 2} and 5 = 3')
         node = parser.parseCondition()
         self.assertEqual(node.evaluate(), False)
+

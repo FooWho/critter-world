@@ -4,19 +4,21 @@ from abstractSyntaxTree import Program
 
 class Mutator:
 
-    def __init__(self, mutationProbability: float = 0.0) -> None:
+   def __init__(self, mutationProbability: float = 0.0) -> None:
         self.mutationProbability = mutationProbability
 
-    def get_heavy_tail_random(self):
-        u = random.random()
-        if u == 0: u = 0.0001
-        val = 1.0 / u
-        result = (val * 0.4) - 0.5
-        sign = 1 if random.random() > 0.5 else -1
-        return math.floor(result) * sign
+   def get_weighted_random(self):
+      loc = random.choice([-1, 1])
+      beta = 1.5
+      variation = random.expovariate(1/beta) * random.choice([-1, 1])
+      result = int(round(loc + variation))
+      if result < -10: result = -1
+      if result > 10: result = 1
+      if result == 0: result = random.choice([-2, -1, 1, 2])
+      return result
 
-    def mutate(self, program: Program) -> Program:
-        """
+   def mutate(self, program: Program) -> Program:
+      """
         From the original:
         1. Remove: The node, along with all its descendants, is removed. If the parent of the node being removed
            needs a replacement child, one of the node's direct children of the correct kind is randomly selected. 
@@ -41,8 +43,10 @@ class Mutator:
            extended with another update.
 
         On rule 4, Transform, I am going to make a modification to the original spec. They want to shift integer
-        contstants up or down by a random value that could be large but is going to be heavily clustered around
-        [-1,0,1]
-        """
-        return Program()
+        literals up or down by a random value that could be large but is going to be heavily clustered around
+        [-1, 1]. My get_weighted_random() method should give a distribution heavily weighted to -1 and 1, with
+        tails that fall off rapidly. I am not going to allow a zero. If the mutator decides we are going to change,
+        we won't decide to 'change by 0'. I am going to restrict change to [-10, 10].
+      """
+      return Program()
 

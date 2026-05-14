@@ -23,10 +23,7 @@ def main():
         exit(1)
     print(str(ast.getRoot()))
     print('* Ok *')
-    mutator = Mutator()
-    for i in range(0, 1000):
-        print(mutator.get_heavy_tail_random())
-
+    
 
 if __name__ == "__main__":
     main()

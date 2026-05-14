@@ -1,13 +1,13 @@
 from __future__ import annotations
 import random, math
-from abstractSyntaxTree import Program
+from abstractSyntaxTree import ASTNode, Program, CommandBlock
 
 class Mutator:
 
    def __init__(self, mutationProbability: float = 0.0) -> None:
         self.mutationProbability = mutationProbability
 
-   def get_weighted_random(self):
+   def getWeightedRandom(self):
       loc = random.choice([-1, 1])
       beta = 1.5
       variation = random.expovariate(1/beta) * random.choice([-1, 1])
@@ -17,7 +17,7 @@ class Mutator:
       if result == 0: result = random.choice([-2, -1, 1, 2])
       return result
 
-   def mutate(self, program: Program) -> Program:
+   def mutate(self, program: Program, mutations: int) -> Program:
       """
         From the original:
         1. Remove: The node, along with all its descendants, is removed. If the parent of the node being removed
@@ -48,5 +48,41 @@ class Mutator:
         tails that fall off rapidly. I am not going to allow a zero. If the mutator decides we are going to change,
         we won't decide to 'change by 0'. I am going to restrict change to [-10, 10].
       """
-      return Program()
 
+      for i in range(0, mutations):
+         mutation_type = random.choice([1, 2, 3, 4, 5, 6])
+         match mutation_type:
+            case 1:
+               pass
+            case 2:
+               pass
+            case 3:
+               pass
+            case 4:
+               pass
+            case 5:
+               pass
+            case 6:
+               pass
+
+      return Program()
+   
+   def countNodes(self, node: ASTNode):
+      nodes = 0
+      if not isinstance(node, (Program, CommandBlock)): nodes = 1 # Don't count the program itself or the CommandBlock, they are passthrough.
+      for child in node:
+         nodes += self.countNodes(child)
+      return nodes
+   
+   def numberFaultInjector(self) -> None:
+      pass
+   
+   """
+   def mutateTransform(self, amount: int) -> None:
+        self.value += amount
+        self.number = TokenLexeme(TOKENS.T_NUMBER, str(self.value))
+    
+   def mutateInsert(self) -> ExpressionNode:
+        unaryOperator = UnaryOperator(TokenLexeme(TOKENS.T_MINUS, '-'), self)
+        return unaryOperator
+   """

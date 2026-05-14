@@ -1,0 +1,10 @@
+species: Critter 3
+memsize: 7
+defense: 1
+offense: 1
+size: 1
+energy: 250
+posture: 0
+
+POSTURE != 17 --> POSTURE := 17; // we are species 17!
+

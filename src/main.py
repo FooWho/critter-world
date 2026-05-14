@@ -1,14 +1,13 @@
 from lexer import Lexer
 from schemas import CritterParseError, Token, TOKENS
 from parser import Parser
-from abstractSyntaxTree import AbstractSyntaxTree, Program, Rule, Command, CommandBlock, Number
+from abstractSyntaxTree import AbstractSyntaxTree, Program, Rule, Command, CommandBlock, Number, MemNode, ExpressionNode
 from typing import TYPE_CHECKING
 from mutator import Mutator
 
 
 def main():
     lexer = Lexer()
-    
     with open('test/critter1.crtr', 'r', encoding='utf-8') as file:
         lines = file.readlines()
     lineContent = lines[8:]
@@ -23,7 +22,7 @@ def main():
         exit(1)
     print(str(ast.getRoot()))
     print('* Ok *')
-    
+
 
 if __name__ == "__main__":
     main()

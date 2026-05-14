@@ -63,7 +63,7 @@ class Rule(ASTNode):
         self.commandBlock = commandBlock or CommandBlock()
 
     def __str__(self) -> str:
-        return f'{str(self.condition)} --> \n     {str(self.commandBlock)}\n     ;\n'
+        return f'{self.condition} --> \n     {self.commandBlock}\n     ;\n'
     
     def setRule(self, condition: BooleanOperator, commandBlock: CommandBlock) -> None:
         self.condition = condition
@@ -150,7 +150,7 @@ class ServeAction(Action):
             self.value = Number()
 
     def __str__(self) -> str:
-        return f'serve[{str(self.value)}]'
+        return f'serve[{self.value}]'
 
 
 
@@ -352,6 +352,7 @@ class Number(ExpressionNode):
     def evaluate(self) -> int:
         return self.value
 
+
 class MemNode(ExpressionNode):
     _children = ('value', )
 
@@ -367,7 +368,7 @@ class MemNode(ExpressionNode):
     def __str__(self) -> str:
         if isinstance(self.value, Number):
             return MemNode.resugar(self.value.evaluate())
-        return f'mem[{str(self.value)}]'
+        return f'mem[{self.value}]'
     
     def evaluate(self) -> int:
         return 0

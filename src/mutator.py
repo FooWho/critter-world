@@ -126,7 +126,6 @@ class Mutator:
                   return BinaryOperator(leftOperand=number, operator=TokenLexeme(choice, op))
                else:
                   return BinaryOperator(rightOperand=number, operator=TokenLexeme(choice, op))
-
             case 2:
                choice = random.choice([TOKENS.T_MEM, TOKENS.T_AHEAD, TOKENS.T_NEARBY, TOKENS.T_RANDOM])
                lexeme = operator_map.get(choice) or ''

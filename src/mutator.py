@@ -1,6 +1,8 @@
 from __future__ import annotations
 import random, math
-from abstractSyntaxTree import ASTNode, Program, CommandBlock
+from schemas import TOKENS, Token, TokenLexeme
+from abstractSyntaxTree import (ASTNode, Program, CommandBlock, ExpressionNode, Number, UnaryOperator, 
+                                BinaryOperator, MemNode, DirectedSensorNode)
 
 class Mutator:
 
@@ -74,15 +76,47 @@ class Mutator:
          nodes += self.countNodes(child)
       return nodes
    
-   def numberFaultInjector(self) -> None:
-      pass
-   
-   """
-   def mutateTransform(self, amount: int) -> None:
-        self.value += amount
-        self.number = TokenLexeme(TOKENS.T_NUMBER, str(self.value))
+   def numberFaultInjector(self, numberNode: Number) -> ExpressionNode:
+      choice = random.choice([0, 1])
+      match choice:
+         case 1:
+            amount = self.getWeightedRandom()
+            return self.mutateTransformNumber(numberNode, amount)
+         case 2:
+            return self.mutateInsertNumber(numberNode)
+         case _:
+            return numberNode
+         
+
+   def mutateTransformNumber(self, number: Number, amount: int) -> ExpressionNode:
+        value = number.getValue()
+        value += amount
+        return number.setValue(value)
     
-   def mutateInsert(self) -> ExpressionNode:
-        unaryOperator = UnaryOperator(TokenLexeme(TOKENS.T_MINUS, '-'), self)
-        return unaryOperator
-   """
+   def mutateInsertNumber(self, number: Number) -> ExpressionNode:
+         choice = random.choice([0, 1, 2])
+         match choice:
+            case 0:
+               unaryOperator = UnaryOperator(TokenLexeme(TOKENS.T_MINUS, '-'), number)
+               return unaryOperator
+            case 1:
+               choice = random.choice([TOKENS.T_MINUS, TOKENS.T_STAR, TOKENS.T_DIV, TOKENS.T_PLUS])
+               side = random.choice(['left', 'right'])
+               if side is 'left':
+                  return BinaryOperator(leftOperand=number, operator=TokenLexeme(choice, choice.value))
+               else:
+                  return BinaryOperator(rightOperand=None, operator=TokenLexeme(choice, choice.value))
+            case 2:
+               choice = random.choice([TOKENS.T_MEM, TOKENS.T_AHEAD, TOKENS.T_NEARBY, TOKENS.T_RANDOM])
+               match choice:
+                  case TOKENS.T_MEM:
+                     return MemNode(number)
+                  case TOKENS.T_AHEAD|TOKENS.T_NEARBY|TOKENS.T_RANDOM:
+                     return DirectedSensorNode(Token(TOKENS(choice), choice.value, 0, 0), number)
+                  case _:
+                     return number
+                    
+            case _:
+               unaryOperator = UnaryOperator(TokenLexeme(TOKENS.T_MINUS, '-'), number)
+               return unaryOperator
+         

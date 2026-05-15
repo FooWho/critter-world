@@ -23,6 +23,10 @@ def main():
     print(str(ast.getRoot()))
     print('* Ok *')
 
+    mutator = Mutator()
+    number = Number(Token(TOKENS.T_NUMBER, '5', 0, 0))
+    expression = mutator.mutateInsertNumber(number)
+    print(f'expression = {expression}')
 
 if __name__ == "__main__":
     main()

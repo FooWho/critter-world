@@ -126,7 +126,7 @@ class Update(Command):
 
 
 class Action(Command):
-    _children = ('actionType',)
+    _children = ()
 
     def __init__(self, actionType: Token|None = None) -> None:
         if actionType:
@@ -139,7 +139,7 @@ class Action(Command):
     
 
 class ServeAction(Action):
-    _children = ('actionType', 'value')
+    _children = ()
 
     def __init__(self, actionType: Token|None = None, 
                  value: ExpressionNode|None = None) -> None:
@@ -155,7 +155,7 @@ class ServeAction(Action):
 
 
 class LogicalOperator(BooleanOperator):
-    _children = ('leftOperand', 'operator', 'rightOperand')
+    _children = ('leftOperand', 'rightOperand')
 
     def __init__(self, leftOperand: BooleanOperator|None = None, 
                  operator: TokenLexeme = T_NONE, 
@@ -208,7 +208,7 @@ class LogicalOperator(BooleanOperator):
         return False
 
 class RelationalOperator(BooleanOperator):
-    _children = ('leftOperand', 'operator', 'rightOperand')
+    _children = ('leftOperand', 'rightOperand')
 
     def __init__(self, leftOperand: ExpressionNode|None = None, 
                  operator: TokenLexeme = T_NONE, 
@@ -248,7 +248,7 @@ class RelationalOperator(BooleanOperator):
 
 
 class BinaryOperator(ExpressionNode):
-    _children = ('leftOperand', 'operator', 'rightOperand')
+    _children = ('leftOperand', 'rightOperand')
 
     def __init__(self, leftOperand: ExpressionNode|None = None, 
                  operator: TokenLexeme = T_NONE, 
@@ -313,7 +313,7 @@ class BinaryOperator(ExpressionNode):
         return False
 
 class UnaryOperator(ExpressionNode):
-    _children = ('operator', 'operand')
+    _children = ('operand',)
 
     def __init__(self, operator: TokenLexeme = T_NONE, operand: ExpressionNode|None = None) -> None:
         self.operator = operator
@@ -336,7 +336,7 @@ class UnaryOperator(ExpressionNode):
                 raise ValueError(f'Expected <UnaryOperator> in evaluation. Saw: "{self.operator.lexeme}"')
 
 class Number(ExpressionNode):
-    _children = ('number', 'value')
+    _children = ()
 
     def __init__(self, number: Token|None = None) -> None:
         if number:
@@ -351,6 +351,14 @@ class Number(ExpressionNode):
     
     def evaluate(self) -> int:
         return self.value
+    
+    def getValue(self) -> int:
+        return self.value
+    
+    def setValue(self, value:int) -> None:
+        self.number = TokenLexeme(TOKENS.T_NUMBER, str(value))
+        self.value = value
+
 
 
 class MemNode(ExpressionNode):

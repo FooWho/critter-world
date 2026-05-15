@@ -355,9 +355,10 @@ class Number(ExpressionNode):
     def getValue(self) -> int:
         return self.value
     
-    def setValue(self, value:int) -> None:
+    def setValue(self, value:int) -> Number:
         self.number = TokenLexeme(TOKENS.T_NUMBER, str(value))
         self.value = value
+        return self
 
 
 

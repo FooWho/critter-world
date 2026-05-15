@@ -88,12 +88,31 @@ class Mutator:
             return numberNode
          
 
-   def mutateTransformNumber(self, number: Number, amount: int) -> ExpressionNode:
+   def mutateTransformNumber(self, number: Number, amount: int) -> Number:
         value = number.getValue()
         value += amount
         return number.setValue(value)
     
    def mutateInsertNumber(self, number: Number) -> ExpressionNode:
+         operator_map = {
+            TOKENS.T_ASSIGN: ':=',
+            TOKENS.T_LEQU: '<=',
+            TOKENS.T_GEQU: '>=',
+            TOKENS.T_NEQU: '!=',
+            TOKENS.T_LESS: '<',
+            TOKENS.T_GREAT: '>',
+            TOKENS.T_EQU: '=',
+            TOKENS.T_COMM: '-->',
+            TOKENS.T_PLUS: '+',
+            TOKENS.T_MINUS: '-',
+            TOKENS.T_STAR: '*',
+            TOKENS.T_DIV: '/',
+            TOKENS.T_MOD: 'mod',
+            TOKENS.T_MEM: 'mem',
+            TOKENS.T_AHEAD: 'ahead',
+            TOKENS.T_NEARBY: 'nearby',
+            TOKENS.T_RANDOM: 'random'
+        }
          choice = random.choice([0, 1, 2])
          match choice:
             case 0:
@@ -102,20 +121,23 @@ class Mutator:
             case 1:
                choice = random.choice([TOKENS.T_MINUS, TOKENS.T_STAR, TOKENS.T_DIV, TOKENS.T_PLUS])
                side = random.choice(['left', 'right'])
+               op = operator_map.get(choice) or ''
                if side is 'left':
-                  return BinaryOperator(leftOperand=number, operator=TokenLexeme(choice, choice.value))
+                  return BinaryOperator(leftOperand=number, operator=TokenLexeme(choice, op))
                else:
-                  return BinaryOperator(rightOperand=None, operator=TokenLexeme(choice, choice.value))
+                  return BinaryOperator(rightOperand=number, operator=TokenLexeme(choice, op))
+
             case 2:
                choice = random.choice([TOKENS.T_MEM, TOKENS.T_AHEAD, TOKENS.T_NEARBY, TOKENS.T_RANDOM])
+               lexeme = operator_map.get(choice) or ''
+               token = Token(choice, lexeme, 0, 0)
                match choice:
                   case TOKENS.T_MEM:
                      return MemNode(number)
                   case TOKENS.T_AHEAD|TOKENS.T_NEARBY|TOKENS.T_RANDOM:
-                     return DirectedSensorNode(Token(TOKENS(choice), choice.value, 0, 0), number)
+                     return DirectedSensorNode(token, number)
                   case _:
-                     return number
-                    
+                     return number        
             case _:
                unaryOperator = UnaryOperator(TokenLexeme(TOKENS.T_MINUS, '-'), number)
                return unaryOperator

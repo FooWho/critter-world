@@ -4,19 +4,21 @@ from enum import StrEnum
 from schemas import Token, TokenLexeme, CritterParseError, TOKENS
 
 
-class Lexer():
-    
+class Lexer:
+
     def __init__(self) -> None:
-        self.combinedPattern = '|'.join([f'(?P<{member.name}>{member.value})' for member in TOKENS])
+        self.combinedPattern = "|".join(
+            [f"(?P<{member.name}>{member.value})" for member in TOKENS]
+        )
         self.compiledPattern = re.compile(self.combinedPattern)
 
     def tokenize(self, code: str) -> Iterator[Token]:
         tokenType: TOKENS
-        lexeme: str 
-        lineNumber:int
+        lexeme: str
+        lineNumber: int
         column: int
         lineStart: int
-        tmp: str|None
+        tmp: str | None
 
         lineStart = 0
         lineNumber = 0
@@ -32,24 +34,27 @@ class Lexer():
             column = tc.start() - lineStart
 
             if tokenType == TOKENS.T_WS:
-                if '\n' in lexeme:
-                    lineNumber += lexeme.count('\n')
+                if "\n" in lexeme:
+                    lineNumber += lexeme.count("\n")
                     lineStart = tc.end()
                 continue
             elif tokenType == TOKENS.T_COMMENT:
                 lineStart = tc.end()
                 continue
             elif tokenType == TOKENS.T_MISMATCH:
-                raise CritterParseError(Token(TOKENS.T_MISMATCH, lexeme, lineNumber, column), '<Any Valid Token>')
+                raise CritterParseError(
+                    Token(TOKENS.T_MISMATCH, lexeme, lineNumber, column),
+                    "<Any Valid Token>",
+                )
             yield Token(tokenType, lexeme, lineNumber, column)
 
-
-    def emitTokens(self, loc: str) -> list[str|None]:
+    def emitTokens(self, loc: str) -> list[str | None]:
         return [match.lastgroup for match in self.compiledPattern.finditer(loc)]
-    
+
     def emitLexemes(self, loc: str) -> list[str]:
         return [match.group() for match in self.compiledPattern.finditer(loc)]
-    
+
     def emitLexemeTokenPair(self, loc: str) -> list[TokenLexeme]:
-        return [TokenLexeme(token.tokenType, token.lexeme) for token in self.tokenize(loc)]
-    
+        return [
+            TokenLexeme(token.tokenType, token.lexeme) for token in self.tokenize(loc)
+        ]

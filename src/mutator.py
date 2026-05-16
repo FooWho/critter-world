@@ -204,11 +204,9 @@ class Mutator:
 
         stack: list[tuple[ASTNode, ASTNode]] = []
         stack.extend(reversed(childPairs))
-        visited = []
         count = 0
         while stack and count <= locus:
             current, parent = stack.pop()
-            visited.append(current)
             count += 1
             if count == locus:
                 return (current, parent)

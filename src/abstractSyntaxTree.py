@@ -22,14 +22,12 @@ class AbstractSyntaxTree:
 
     def getExpressions(self) -> list[ExpressionNode]:
         expressions: list[ExpressionNode] = []
-        # visited:list[ASTNode] = []
         stack: list[ASTNode] = list(reversed(list(self.rootNode)))
 
         while stack:
             current = stack.pop()
             if isinstance(current, ExpressionNode):
                 expressions.append(current)
-            # visited.append(current)
             try:
                 children = list(current)
                 stack.extend(reversed(children))

@@ -1,4 +1,5 @@
 from __future__ import annotations
+from typing import cast
 import random, math
 from schemas import TOKENS, Token, TokenLexeme
 from abstractSyntaxTree import (
@@ -11,6 +12,8 @@ from abstractSyntaxTree import (
     BinaryOperator,
     MemNode,
     DirectedSensorNode,
+    RelationalOperator,
+    LogicalOperator,
 )
 
 
@@ -66,21 +69,23 @@ class Mutator:
 
         locus = self.faultLocus(ast)
         if isinstance(locus[0], Number):
-            print(f"Locus is a Number: {locus[0]}")
             new = self.numberFaultInjector(locus[0])
             if isinstance(new, Number):
                 pass
             elif isinstance(new, ExpressionNode):
-                print("IT'S EXPRESSION")
-                # If we get back an expression, that means our parent gets a new child.
-                # If they need another child, we need to copy a random child of appropriate
-                # type.
-            print(f"Mutated: {new}")
+                parent = locus[1]
+                match type(parent):
+                    case RelationalOperator:
+                        parent = cast(RelationalOperator, parent)
+                        if locus[0] == parent.getLeftOperand():
+                            parent.setLeftOperand(new)
+                        elif locus[0] == parent.getRightOperand():
+                            parent.setRightOperand(new)
+                        else:
+                            raise RuntimeError("Couldn't match child.")
             return True
         elif isinstance(locus[0], BinaryOperator):
-            print("Locus is a BinaryOperator")
             new = self.binaryOperationFaultInjector(locus[0])
-            print(f"Mutated: {new}")
             return True
         else:
             print("Got skunked")
@@ -91,10 +96,8 @@ class Mutator:
         match choice:
             case 0:
                 amount = self.getWeightedRandom()
-                print(f"Transforming")
                 return self.mutateTransformNumber(numberNode, amount)
             case 1:
-                print(f"Inserting")
                 return self.mutateInsertNumber(numberNode)
             case _:
                 return numberNode
@@ -102,7 +105,6 @@ class Mutator:
     def mutateTransformNumber(self, number: Number, amount: int) -> Number:
         value = number.getValue()
         value += amount
-        print(f"New value: {value}")
         return number.setValue(value)
 
     def mutateInsertNumber(self, number: Number) -> ExpressionNode:

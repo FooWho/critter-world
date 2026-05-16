@@ -9,6 +9,7 @@ class AbstractSyntaxTree:
     def __init__(self, rootNode: Program | None = None) -> None:
         self.rootNode = rootNode or Program()
         self.nodeCount = countNodes(self.rootNode)
+        self.expressions: list[ExpressionNode] = self.getExpressions()
 
     def setRoot(self, rootNode: Program) -> None:
         self.rootNode = rootNode
@@ -18,6 +19,23 @@ class AbstractSyntaxTree:
 
     def getNodeCount(self) -> int:
         return self.nodeCount
+
+    def getExpressions(self) -> list[ExpressionNode]:
+        expressions: list[ExpressionNode] = []
+        # visited:list[ASTNode] = []
+        stack: list[ASTNode] = list(reversed(list(self.rootNode)))
+
+        while stack:
+            current = stack.pop()
+            if isinstance(current, ExpressionNode):
+                expressions.append(current)
+            # visited.append(current)
+            try:
+                children = list(current)
+                stack.extend(reversed(children))
+            except TypeError:
+                pass  # This node had no children
+        return expressions
 
     def copyProgram(self) -> Program:
         program = copy.deepcopy(self.rootNode)
@@ -251,6 +269,12 @@ class RelationalOperator(BooleanOperator):
 
     def setRightOperand(self, operand: ExpressionNode) -> None:
         self.rightOperand = operand
+
+    def getLeftOperand(self) -> ExpressionNode:
+        return self.leftOperand
+
+    def getRightOperand(self) -> ExpressionNode:
+        return self.rightOperand
 
     def evaluate(self) -> bool:
         match self.operator.tokenType:

@@ -35,7 +35,6 @@ class Mutator:
             result = random.choice([-2, -1, 1, 2])
         return result
 
-    def mutate(self, ast: AbstractSyntaxTree, mutations: int) -> bool:
         """
         From the original:
         1. Remove: The node, along with all its descendants, is removed. If the parent of the node being removed
@@ -67,32 +66,39 @@ class Mutator:
         we won't decide to 'change by 0'. I am going to restrict change to [-10, 10].
         """
 
-        locus = self.faultLocus(ast)
-        if isinstance(locus[0], Number):
-            new = self.numberFaultInjector(locus[0])
-            if isinstance(new, Number):
-                pass
-            elif isinstance(new, ExpressionNode):
-                parent = locus[1]
-                match type(parent):
-                    case RelationalOperator:
-                        parent = cast(RelationalOperator, parent)
-                        if locus[0] == parent.getLeftOperand():
-                            parent.setLeftOperand(new)
-                        elif locus[0] == parent.getRightOperand():
-                            parent.setRightOperand(new)
-                        else:
-                            raise RuntimeError("Couldn't match child.")
-            return True
-        elif isinstance(locus[0], BinaryOperator):
-            new = self.binaryOperationFaultInjector(locus[0])
-            return True
-        else:
-            print("Got skunked")
-            return False
+    def mutate(self, ast: AbstractSyntaxTree, mutations: int) -> bool:
+        self.ast: AbstractSyntaxTree = ast
+        locus = self.generateFaultLocus(ast)
+        match locus[0]:
+            case Number():
+                locus = cast(tuple[Number, ASTNode], locus)
+                new = self.numberFaultInjector(locus)
+                match new:
+                    case Number():
+                        pass
+                    case ExpressionNode():
+                        parent = locus[1]
+                        match parent:
+                            case RelationalOperator():
+                                parent = cast(RelationalOperator, parent)
+                                if locus[0] == parent.getLeftOperand():
+                                    parent.setLeftOperand(new)
+                                elif locus[0] == parent.getRightOperand():
+                                    parent.setRightOperand(new)
+                                else:
+                                    raise RuntimeError("Couldn't match child.")
+                        return True
+            case BinaryOperator():
+                new = self.binaryOperationFaultInjector(locus[0])
+                return True
+            case _:
+                print("Got skunked")
+                return False
 
-    def numberFaultInjector(self, numberNode: Number) -> ExpressionNode:
+    def numberFaultInjector(self, faultLocus: tuple[Number, ASTNode]) -> ExpressionNode:
         choice = random.choice([0, 1])
+        numberNode = faultLocus[0]
+        parentNode = faultLocus[1]
         match choice:
             case 0:
                 amount = self.getWeightedRandom()
@@ -130,23 +136,33 @@ class Mutator:
         choice = random.choice([0, 1, 2])
         match choice:
             case 0:
+                # Insert UnaryOperator
                 unaryOperator = UnaryOperator(TokenLexeme(TOKENS.T_MINUS, "-"), number)
                 return unaryOperator
             case 1:
+                # Insert BinaryOperator
                 choice = random.choice(
                     [TOKENS.T_MINUS, TOKENS.T_STAR, TOKENS.T_DIV, TOKENS.T_PLUS]
                 )
                 side = random.choice(["left", "right"])
                 op = operator_map.get(choice) or ""
+                expressions = self.ast.getExpressions()
+                expression = random.choice(expressions)
+                otherExpression = cast(ExpressionNode, expression.copyNode())
                 if side is "left":
                     return BinaryOperator(
-                        leftOperand=number, operator=TokenLexeme(choice, op)
+                        leftOperand=number,
+                        operator=TokenLexeme(choice, op),
+                        rightOperand=otherExpression,
                     )
                 else:
                     return BinaryOperator(
-                        rightOperand=number, operator=TokenLexeme(choice, op)
+                        leftOperand=otherExpression,
+                        operator=TokenLexeme(choice, op),
+                        rightOperand=number,
                     )
             case 2:
+                # Insert MemNode, SensorNode
                 choice = random.choice(
                     [TOKENS.T_MEM, TOKENS.T_AHEAD, TOKENS.T_NEARBY, TOKENS.T_RANDOM]
                 )
@@ -178,7 +194,7 @@ class Mutator:
         binaryOperation.setRightOperand(leftOperand)
         return binaryOperation
 
-    def faultLocus(self, ast: AbstractSyntaxTree) -> tuple[ASTNode, ASTNode]:
+    def generateFaultLocus(self, ast: AbstractSyntaxTree) -> tuple[ASTNode, ASTNode]:
         nodeCount = ast.getNodeCount()
         locus = random.randint(1, nodeCount)
 

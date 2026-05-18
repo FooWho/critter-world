@@ -75,7 +75,7 @@ class Mutator:
                 new = self.numberFaultInjector(locus)
                 match new:
                     case Number():
-                        pass
+                        return True
                     case ExpressionNode():
                         parent = locus[1]
                         match parent:

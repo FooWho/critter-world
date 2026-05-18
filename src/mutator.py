@@ -12,6 +12,7 @@ from abstractSyntaxTree import (
     BinaryOperator,
     MemNode,
     DirectedSensorNode,
+    SensorNode,
     RelationalOperator,
     LogicalOperator,
     Update,
@@ -66,6 +67,10 @@ class Mutator:
         [-1, 1]. My getWeightedRandom() method should give a distribution heavily weighted to -1 and 1, with
         tails that fall off rapidly. I am not going to allow a zero. If the mutator decides we are going to change,
         we won't decide to 'change by 0'. I am going to restrict change to [-10, 10].
+
+        Will need validations before it's done. For example, remove rule currently just removes the
+        stated rule. A program with no rules is not valid, so we can't pick to do this if there is only
+        one rule.
         """
 
     def mutate(self, ast: AbstractSyntaxTree, mutations: int) -> bool:
@@ -75,6 +80,12 @@ class Mutator:
             case Number():
                 locus = cast(tuple[Number, ASTNode], locus)
                 self.numberFaultInjector(locus)
+                return True
+            case MemNode():
+                pass
+            case SensorNode():
+                locus = cast(tuple[SensorNode, ASTNode], locus)
+                self.sensorFaultInjector(locus)
                 return True
             case BinaryOperator():
                 locus = cast(tuple[BinaryOperator, ASTNode], locus)
@@ -92,23 +103,23 @@ class Mutator:
                 print("Got skunked")
                 return False
 
-    def numberFaultInjector(
-        self, faultLocus: tuple[Number, ASTNode]
-    ) -> ExpressionNode | None:
-        choice = random.choice([0, 1])
+    def numberFaultInjector(self, faultLocus: tuple[Number, ASTNode]) -> None:
+        choice = random.choice([4, 5])
         numberNode = faultLocus[0]
         parentNode = faultLocus[1]
         match choice:
-            case 0:
+            case 4:
+                # Transform
                 amount = self.getWeightedRandom()
                 self.mutateTransformNumber(numberNode, amount)
-                return None
-            case 1:
+            case 5:
+                # Insert
                 mutation = self.mutateInsertNumber(numberNode)
                 self.updateInsertion(mutation, faultLocus)
-                return mutation
             case _:
-                return None
+                raise NotImplementedError(
+                    f"Choice {choice} for numberFaultInjector() not implemented."
+                )
 
     def mutateTransformNumber(self, number: Number, amount: int) -> None:
         number.value += amount
@@ -182,7 +193,16 @@ class Mutator:
         self, faultLocus: tuple[BinaryOperator, ASTNode]
     ) -> None:
         originalNode = faultLocus[0]
-        self.mutateSwapBinaryOperation(originalNode)
+        parentNode = faultLocus[1]
+        choice = random.choice([2])
+        match choice:
+            case 2:
+                # swap
+                self.mutateSwapBinaryOperation(originalNode)
+            case _:
+                raise NotImplementedError(
+                    f"Choice {choice} for binaryOperationFaultInjector() not implimented."
+                )
 
     def mutateSwapBinaryOperation(self, binaryOperation: BinaryOperator) -> None:
         tmp = binaryOperation.leftOperand
@@ -193,7 +213,15 @@ class Mutator:
         self, faultLocus: tuple[LogicalOperator, ASTNode]
     ) -> None:
         originalNode = faultLocus[0]
-        self.mutateSwapLogicalOperation(originalNode)
+        parentNode = faultLocus[1]
+        choice = random.choice([2])
+        match choice:
+            case 2:
+                self.mutateSwapLogicalOperation(originalNode)
+            case _:
+                raise NotImplementedError(
+                    f"Choice {choice} for logicalOperatorFaultInjector() not implemented."
+                )
 
     def mutateSwapLogicalOperation(self, logicalOperation: LogicalOperator) -> None:
         tmp = logicalOperation.leftOperand
@@ -201,9 +229,29 @@ class Mutator:
         logicalOperation.rightOperand = tmp
 
     def ruleFaultInjector(self, faultLocus: tuple[Rule, Program]) -> None:
-        print("ruleFaultInjector()")
         originalNode = faultLocus[0]
-        self.ast.rootNode.rules.remove(originalNode)
+        parentNode = faultLocus[1]
+        choice = random.choice([1])
+        match choice:
+            case 1:
+                self.ast.rootNode.rules.remove(originalNode)
+            case _:
+                raise NotImplementedError(
+                    f"Choice {choice} for ruleFaultInjector() not implemented."
+                )
+
+    def mutateRemoveRuleFaultInjector(self, rule: Rule) -> None:
+        self.ast.rootNode.rules.remove(rule)
+
+    def sensorFaultInjector(self, faultLocus: tuple[SensorNode, ASTNode]) -> None:
+        originalNode = faultLocus[0]
+        parentNode = faultLocus[1]
+        choice = random.choice([0])
+        match choice:
+            case _:
+                raise NotImplementedError(
+                    f"Choice {choice} for sensorFaultInjector() not implemented."
+                )
 
     def generateFaultLocus(self, ast: AbstractSyntaxTree) -> tuple[ASTNode, ASTNode]:
         nodeCount = ast.nodeCount

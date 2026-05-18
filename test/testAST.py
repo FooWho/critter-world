@@ -24,16 +24,16 @@ class TestAST(unittest.TestCase):
 
     def testNumber(self):
         number = Number(Token(TOKENS.T_NUMBER, "5", 0, 0))
-        self.assertEqual(number.getValue(), 5)
+        self.assertEqual(number.value, 5)
         self.assertEqual(number.evaluate(), 5)
-        number.setValue(6)
-        self.assertEqual(number.getValue(), 6)
+        number.value = 6
+        self.assertEqual(number.value, 6)
         self.assertEqual(countNodes(number), 1)
 
     def testMemNode(self):
         number10 = Number(Token(TOKENS.T_NUMBER, "10", 0, 0))
         memNode1 = MemNode(number10)
-        self.assertEqual(memNode1.getValue(), number10)
+        self.assertEqual(memNode1.value, number10)
         self.assertEqual(countNodes(memNode1), 2)
         number5 = Number(Token(TOKENS.T_NUMBER, "5", 0, 0))
         number15 = Number(Token(TOKENS.T_NUMBER, "15", 0, 0))

@@ -14,6 +14,7 @@ from abstractSyntaxTree import (
     DirectedSensorNode,
     RelationalOperator,
     LogicalOperator,
+    Update,
 )
 
 
@@ -61,7 +62,7 @@ class Mutator:
 
         On rule 4, Transform, I am going to make a modification to the original spec. They want to shift integer
         literals up or down by a random value that could be large but is going to be heavily clustered around
-        [-1, 1]. My get_weighted_random() method should give a distribution heavily weighted to -1 and 1, with
+        [-1, 1]. My getWeightedRandom() method should give a distribution heavily weighted to -1 and 1, with
         tails that fall off rapidly. I am not going to allow a zero. If the mutator decides we are going to change,
         we won't decide to 'change by 0'. I am going to restrict change to [-10, 10].
         """
@@ -74,20 +75,21 @@ class Mutator:
                 locus = cast(tuple[Number, ASTNode], locus)
                 new = self.numberFaultInjector(locus)
                 match new:
-                    case Number():
-                        return True
                     case ExpressionNode():
-                        parent = locus[1]
-                        match parent:
-                            case RelationalOperator():
-                                parent = cast(RelationalOperator, parent)
-                                if locus[0] == parent.getLeftOperand():
-                                    parent.setLeftOperand(new)
-                                elif locus[0] == parent.getRightOperand():
-                                    parent.setRightOperand(new)
-                                else:
-                                    raise RuntimeError("Couldn't match child.")
+                        # If the number fault injector returns an expression, the mutations was insertion.
+                        # New child needs to be plugged into the parent. Nope - we handle this in the
+                        # numberFaultInjector() now.
                         return True
+                    case None:
+                        # Mutation was perfromed in place.
+                        print("IN PLACE MUTATION")
+                        return True
+                    case _:
+                        # Something failed and we should have raised a RuntimeError already.
+                        print("This should not print.")
+                        raise RuntimeError(
+                            "This case should not execute. Something went wrong."
+                        )
             case BinaryOperator():
                 new = self.binaryOperationFaultInjector(locus[0])
                 return True
@@ -95,23 +97,26 @@ class Mutator:
                 print("Got skunked")
                 return False
 
-    def numberFaultInjector(self, faultLocus: tuple[Number, ASTNode]) -> ExpressionNode:
+    def numberFaultInjector(
+        self, faultLocus: tuple[Number, ASTNode]
+    ) -> ExpressionNode | None:
         choice = random.choice([0, 1])
         numberNode = faultLocus[0]
         parentNode = faultLocus[1]
         match choice:
             case 0:
                 amount = self.getWeightedRandom()
-                return self.mutateTransformNumber(numberNode, amount)
+                self.mutateTransformNumber(numberNode, amount)
+                return None
             case 1:
-                return self.mutateInsertNumber(numberNode)
+                mutation = self.mutateInsertNumber(numberNode)
+                self.updateInsertion(mutation, faultLocus)
+                return mutation
             case _:
-                return numberNode
+                return None
 
-    def mutateTransformNumber(self, number: Number, amount: int) -> Number:
-        value = number.getValue()
-        value += amount
-        return number.setValue(value)
+    def mutateTransformNumber(self, number: Number, amount: int) -> None:
+        number.value += amount
 
     def mutateInsertNumber(self, number: Number) -> ExpressionNode:
         operator_map = {
@@ -149,7 +154,7 @@ class Mutator:
                 expressions = self.ast.getExpressions()
                 expression = random.choice(expressions)
                 otherExpression = cast(ExpressionNode, expression.copyNode())
-                if side is "left":
+                if side == "left":
                     return BinaryOperator(
                         leftOperand=number,
                         operator=TokenLexeme(choice, op),
@@ -188,17 +193,16 @@ class Mutator:
     def mutateSwapBinaryOperation(
         self, binaryOperation: BinaryOperator
     ) -> BinaryOperator:
-        leftOperand = binaryOperation.getLeftOperand()
-        rightOperand = binaryOperation.getRightOperand()
-        binaryOperation.setLeftOperand(rightOperand)
-        binaryOperation.setRightOperand(leftOperand)
+        tmp = binaryOperation.leftOperand
+        binaryOperation.leftOperand = binaryOperation.rightOperand
+        binaryOperation.rightOperand = tmp
         return binaryOperation
 
     def generateFaultLocus(self, ast: AbstractSyntaxTree) -> tuple[ASTNode, ASTNode]:
-        nodeCount = ast.getNodeCount()
+        nodeCount = ast.nodeCount
         locus = random.randint(1, nodeCount)
 
-        parent: ASTNode = ast.getRoot()
+        parent: ASTNode = ast.rootNode
         children = list(parent)
         childPairs = [(child, parent) for child in children]
 
@@ -219,3 +223,30 @@ class Mutator:
         raise RuntimeError(
             f"Mutator.faultLocus() failed to find a locus of mutation. locus:{locus} nodeCount:{nodeCount}"
         )
+
+    def updateInsertion(self, mutation: ExpressionNode, locus: tuple[Number, ASTNode]):
+        originalNode = locus[0]
+        parentNode = locus[1]
+        match parentNode:
+            case UnaryOperator():
+                parentNode.operand = mutation
+            case RelationalOperator():
+                print(f"We got a {type(mutation)}")
+                if originalNode == parentNode.leftOperand:
+                    parentNode.leftOperand = mutation
+                elif originalNode == parentNode.rightOperand:
+                    parentNode.rightOperand = mutation
+                else:
+                    raise RuntimeError("Couldn't match the child in updateInsertion()")
+            case Update():
+                parentNode.source = mutation
+            case BinaryOperator():
+                if parentNode.leftOperand == originalNode:
+                    parentNode.leftOperand = mutation
+                elif parentNode.rightOperand == originalNode:
+                    parentNode.rightOperand = mutation
+                else:
+                    raise RuntimeError("We did not match the left or right operand.")
+            case _:
+                print("IN DEFAULT")
+                print(f"We got a {type(mutation)}")

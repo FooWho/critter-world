@@ -50,11 +50,11 @@ class Parser:
     def parse(self) -> Program:
         program = Program()
 
-        program.addRule(self.parseRule())
+        program.rules.append(self.parseRule())
         token = self.peek()
         while token.tokenType is not TOKENS.T_EOF:
             rule = self.parseRule()
-            program.addRule(rule)
+            program.rules.append(rule)
             token = self.peek()
 
         return program
@@ -130,9 +130,9 @@ class Parser:
         while token.tokenType is TOKENS.T_OR:
             op = self.getToken()
             logOp = LogicalOperator()
-            logOp.setLeftOperand(conjunction)
-            logOp.setOperator(TokenLexeme(op.tokenType, op.lexeme))
-            logOp.setRightOperand(self.parseConjunction())
+            logOp.leftOperand = conjunction
+            logOp.operator = TokenLexeme(op.tokenType, op.lexeme)
+            logOp.rightOperand = self.parseConjunction()
             conjunction = logOp
             token = self.peek()
         return conjunction
@@ -143,9 +143,9 @@ class Parser:
         while token.tokenType is TOKENS.T_AND:
             op = self.getToken()
             logOp = LogicalOperator()
-            logOp.setLeftOperand(relation)
-            logOp.setOperator(TokenLexeme(op.tokenType, op.lexeme))
-            logOp.setRightOperand(self.parseRelation())
+            logOp.leftOperand = relation
+            logOp.operator = TokenLexeme(op.tokenType, op.lexeme)
+            logOp.rightOperand = self.parseRelation()
             relation = logOp
             token = self.peek()
         return relation
@@ -174,9 +174,9 @@ class Parser:
         while self.peek().tokenType in SET_ADDOPS:
             op = self.getToken()
             binOp = BinaryOperator()
-            binOp.setLeftOperand(expression)
-            binOp.setOperator(TokenLexeme(op.tokenType, op.lexeme))
-            binOp.setRightOperand(self.parseTerm())
+            binOp.leftOperand = expression
+            binOp.operator = TokenLexeme(op.tokenType, op.lexeme)
+            binOp.rightOperand = self.parseTerm()
             expression = binOp
         return expression
 
@@ -185,9 +185,9 @@ class Parser:
         while self.peek().tokenType in SET_MULOPS:
             op = self.getToken()
             binOp = BinaryOperator()
-            binOp.setLeftOperand(term)
-            binOp.setOperator(TokenLexeme(op.tokenType, op.lexeme))
-            binOp.setRightOperand(self.parseFactor())
+            binOp.leftOperand = term
+            binOp.operator = TokenLexeme(op.tokenType, op.lexeme)
+            binOp.rightOperand = self.parseFactor()
             term = binOp
         return term
 
@@ -203,8 +203,8 @@ class Parser:
             case TOKENS.T_MINUS:
                 op = self.getToken()
                 unOp = UnaryOperator()
-                unOp.setOperator(TokenLexeme(op.tokenType, op.lexeme))
-                unOp.setOperand(self.parseFactor())
+                unOp.operator = TokenLexeme(op.tokenType, op.lexeme)
+                unOp.operand = self.parseFactor()
                 return unOp
             case TOKENS.T_L_PAREN:
                 token = self.getToken()

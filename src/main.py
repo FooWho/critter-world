@@ -29,15 +29,16 @@ def main():
     except CritterParseError as cpe:
         print(cpe)
         exit(1)
-    print(str(ast.getRoot()))
+    print(str(ast.rootNode))
     print("* Ok *")
-    print(f"Nodes: {ast.getNodeCount()}")
+    print(f"Nodes: {ast.nodeCount}")
 
     mutator = Mutator()
     # mutator.faultInjection(ast)
 
     if mutator.mutate(ast, 1):
-        print(str(ast.getRoot()))
+        # print(str(ast.rootNode))
+        pass
 
 
 if __name__ == "__main__":

@@ -11,15 +11,6 @@ class AbstractSyntaxTree:
         self.nodeCount = countNodes(self.rootNode)
         self.expressions: list[ExpressionNode] = self.getExpressions()
 
-    def setRoot(self, rootNode: Program) -> None:
-        self.rootNode = rootNode
-
-    def getRoot(self) -> Program:
-        return self.rootNode
-
-    def getNodeCount(self) -> int:
-        return self.nodeCount
-
     def getExpressions(self) -> list[ExpressionNode]:
         expressions: list[ExpressionNode] = []
         stack: list[ASTNode] = list(reversed(list(self.rootNode)))
@@ -65,12 +56,6 @@ class Program(ASTNode):
     def __str__(self) -> str:
         return "\n".join(str(rule) for rule in self.rules)
 
-    def addRule(self, rule: Rule) -> None:
-        self.rules.append(rule)
-
-    def getRules(self) -> list[Rule]:
-        return self.rules
-
 
 class ExpressionNode(ASTNode):
     def evaluate(self) -> int:
@@ -97,28 +82,6 @@ class Rule(ASTNode):
         result = "\n     ".join(map(str, self.commands))
         return f"{self.condition} --> \n     {result}\n     ;\n"
 
-    def setRule(self, condition: BooleanOperator, commands: list[Command]) -> None:
-        self.condition = condition
-        self.commands = commands
-
-    def setCondition(self, condition: BooleanOperator) -> None:
-        self.condition = condition
-
-    def setCommands(self, commands: list[Command]) -> None:
-        self.commands = commands
-
-    """
-    def firstCommand(self, command: Command) -> None:
-        if self.commands:
-            raise ValueError('FirstCommand called for Rule with existing commands.')
-        self.commands.append(command)
-
-    def addCommand(self, command: Command) -> None:
-        if self.commands and isinstance(self.commands[-1], Action):
-            raise ValueError('<Rule> not allowed to have <Command> following a terminal <Action>.')
-        self.commands.append(command)
-    """
-
 
 class Command(ASTNode):
     def __str__(self) -> str:
@@ -136,16 +99,6 @@ class Update(Command):
 
     def __str__(self) -> str:
         return f"{self.destination} := {self.source}"
-
-    def setUpdate(self, destination: MemNode, source: ExpressionNode) -> None:
-        self.destination = destination
-        self.source = source
-
-    def setDestination(self, destination: MemNode) -> None:
-        self.destination = destination
-
-    def setSource(self, source: ExpressionNode) -> None:
-        self.source = source
 
 
 class Action(Command):
@@ -208,15 +161,6 @@ class LogicalOperator(BooleanOperator):
 
         return tmpStr
 
-    def setLeftOperand(self, operand: BooleanOperator) -> None:
-        self.leftOperand = operand
-
-    def setOperator(self, operator: TokenLexeme) -> None:
-        self.operator = operator
-
-    def setRightOperand(self, operand: BooleanOperator) -> None:
-        self.rightOperand = operand
-
     def evaluate(self) -> bool:
         match self.operator.tokenType:
             case TOKENS.T_AND:
@@ -258,21 +202,6 @@ class RelationalOperator(BooleanOperator):
             + " "
             + str(self.rightOperand)
         )
-
-    def setLeftOperand(self, operand: ExpressionNode) -> None:
-        self.leftOperand = operand
-
-    def setOperator(self, operator: TokenLexeme) -> None:
-        self.operator = operator
-
-    def setRightOperand(self, operand: ExpressionNode) -> None:
-        self.rightOperand = operand
-
-    def getLeftOperand(self) -> ExpressionNode:
-        return self.leftOperand
-
-    def getRightOperand(self) -> ExpressionNode:
-        return self.rightOperand
 
     def evaluate(self) -> bool:
         match self.operator.tokenType:
@@ -323,24 +252,6 @@ class BinaryOperator(ExpressionNode):
 
         return tmpStr
 
-    def setLeftOperand(self, operand: ExpressionNode) -> None:
-        self.leftOperand = operand
-
-    def setOperator(self, operator: TokenLexeme) -> None:
-        self.operator = operator
-
-    def setRightOperand(self, operand: ExpressionNode) -> None:
-        self.rightOperand = operand
-
-    def getLeftOperand(self) -> ExpressionNode:
-        return self.leftOperand
-
-    def getOperator(self) -> TokenLexeme:
-        return self.operator
-
-    def getRightOperand(self) -> ExpressionNode:
-        return self.rightOperand
-
     def evaluate(self) -> int:
         match self.operator.tokenType:
             case TOKENS.T_PLUS:
@@ -387,12 +298,6 @@ class UnaryOperator(ExpressionNode):
     def __str__(self) -> str:
         return "-" + str(self.operand)
 
-    def setOperator(self, operator: TokenLexeme) -> None:
-        self.operator = operator
-
-    def setOperand(self, operand: ExpressionNode) -> None:
-        self.operand = operand
-
     def evaluate(self) -> int:
         match self.operator.tokenType:
             case TOKENS.T_MINUS:
@@ -409,24 +314,25 @@ class Number(ExpressionNode):
     def __init__(self, number: Token | None = None) -> None:
         if number:
             self.number = TokenLexeme(number.tokenType, number.lexeme)
-            self.value = int(self.number.lexeme)
+            self._value = int(self.number.lexeme)
         else:
             self.number = T_NONE
-            self.value = 0
+            self._value = 0
 
     def __str__(self) -> str:
         return self.number.lexeme
 
     def evaluate(self) -> int:
-        return self.value
+        return self._value
 
-    def getValue(self) -> int:
-        return self.value
+    @property
+    def value(self) -> int:
+        return self._value
 
-    def setValue(self, value: int) -> Number:
+    @value.setter
+    def value(self, value: int) -> None:
         self.number = TokenLexeme(TOKENS.T_NUMBER, str(value))
-        self.value = value
-        return self
+        self._value = value
 
 
 class MemNode(ExpressionNode):
@@ -434,12 +340,6 @@ class MemNode(ExpressionNode):
 
     def __init__(self, value: ExpressionNode | None = None) -> None:
         self.value = value or Number()
-
-    def setValue(self, value: ExpressionNode) -> None:
-        self.value = value
-
-    def getValue(self) -> ExpressionNode:
-        return self.value
 
     def __str__(self) -> str:
         if isinstance(self.value, Number):
@@ -512,12 +412,6 @@ class SensorNode(ExpressionNode):
         else:
             self.sensorType = T_NONE
 
-    def setSensorType(self, sensorType: Token) -> None:
-        self.sensorType = TokenLexeme(sensorType.tokenType, sensorType.lexeme)
-
-    def getSensorType(self) -> TokenLexeme:
-        return self.sensorType
-
     def __str__(self) -> str:
         return f"{self.sensorType.lexeme}"
 
@@ -534,12 +428,6 @@ class DirectedSensorNode(SensorNode):
         super().__init__(sensorType)
 
         self.value = value or Number()
-
-    def setValue(self, value: ExpressionNode) -> None:
-        self.value = value
-
-    def getValue(self) -> ExpressionNode:
-        return self.value
 
     def __str__(self) -> str:
         return f"{self.sensorType.lexeme}[{self.value}]"

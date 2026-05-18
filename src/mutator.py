@@ -15,6 +15,7 @@ from abstractSyntaxTree import (
     RelationalOperator,
     LogicalOperator,
     Update,
+    Rule,
 )
 
 
@@ -73,25 +74,19 @@ class Mutator:
         match locus[0]:
             case Number():
                 locus = cast(tuple[Number, ASTNode], locus)
-                new = self.numberFaultInjector(locus)
-                match new:
-                    case ExpressionNode():
-                        # If the number fault injector returns an expression, the mutations was insertion.
-                        # New child needs to be plugged into the parent. Nope - we handle this in the
-                        # numberFaultInjector() now.
-                        return True
-                    case None:
-                        # Mutation was perfromed in place.
-                        print("IN PLACE MUTATION")
-                        return True
-                    case _:
-                        # Something failed and we should have raised a RuntimeError already.
-                        print("This should not print.")
-                        raise RuntimeError(
-                            "This case should not execute. Something went wrong."
-                        )
+                self.numberFaultInjector(locus)
+                return True
             case BinaryOperator():
-                new = self.binaryOperationFaultInjector(locus[0])
+                locus = cast(tuple[BinaryOperator, ASTNode], locus)
+                self.binaryOperationFaultInjector(locus)
+                return True
+            case LogicalOperator():
+                locus = cast(tuple[LogicalOperator, ASTNode], locus)
+                self.logicalOperationFaultInjector(locus)
+                return True
+            case Rule():
+                locus = cast(tuple[Rule, Program], locus)
+                self.ruleFaultInjector(locus)
                 return True
             case _:
                 print("Got skunked")
@@ -181,22 +176,34 @@ class Mutator:
                     case _:
                         return number
             case _:
-                unaryOperator = UnaryOperator(TokenLexeme(TOKENS.T_MINUS, "-"), number)
-                return unaryOperator
+                raise RuntimeError("This should never happen.")
 
     def binaryOperationFaultInjector(
-        self, binaryOperation: BinaryOperator
-    ) -> BinaryOperator:
-        binaryOperation = self.mutateSwapBinaryOperation(binaryOperation)
-        return binaryOperation
+        self, faultLocus: tuple[BinaryOperator, ASTNode]
+    ) -> None:
+        originalNode = faultLocus[0]
+        self.mutateSwapBinaryOperation(originalNode)
 
-    def mutateSwapBinaryOperation(
-        self, binaryOperation: BinaryOperator
-    ) -> BinaryOperator:
+    def mutateSwapBinaryOperation(self, binaryOperation: BinaryOperator) -> None:
         tmp = binaryOperation.leftOperand
         binaryOperation.leftOperand = binaryOperation.rightOperand
         binaryOperation.rightOperand = tmp
-        return binaryOperation
+
+    def logicalOperationFaultInjector(
+        self, faultLocus: tuple[LogicalOperator, ASTNode]
+    ) -> None:
+        originalNode = faultLocus[0]
+        self.mutateSwapLogicalOperation(originalNode)
+
+    def mutateSwapLogicalOperation(self, logicalOperation: LogicalOperator) -> None:
+        tmp = logicalOperation.leftOperand
+        logicalOperation.leftOperand = logicalOperation.rightOperand
+        logicalOperation.rightOperand = tmp
+
+    def ruleFaultInjector(self, faultLocus: tuple[Rule, Program]) -> None:
+        print("ruleFaultInjector()")
+        originalNode = faultLocus[0]
+        self.ast.rootNode.rules.remove(originalNode)
 
     def generateFaultLocus(self, ast: AbstractSyntaxTree) -> tuple[ASTNode, ASTNode]:
         nodeCount = ast.nodeCount
@@ -247,6 +254,10 @@ class Mutator:
                     parentNode.rightOperand = mutation
                 else:
                     raise RuntimeError("We did not match the left or right operand.")
+            case DirectedSensorNode():
+                parentNode.value = mutation
             case _:
                 print("IN DEFAULT")
-                print(f"We got a {type(mutation)}")
+                print(
+                    f"We got a (mutation) {type(mutation)} (parent) {type(parentNode)}"
+                )

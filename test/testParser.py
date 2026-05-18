@@ -45,7 +45,7 @@ class TestParser(unittest.TestCase):
         for i in range(len(memStrs)):
             node = parser.parseMemNode()
             self.assertIsInstance(node, MemNode)
-            node = node.getValue()
+            node = node.value
             self.assertIsInstance(node, Number)
             node = cast(Number, node)
             tst = self.helperForMemNode(memStrs[i])
@@ -64,9 +64,9 @@ class TestParser(unittest.TestCase):
             node = parser.parseSensor()
             self.assertIsInstance(node, SensorNode)
             tst = self.helperForSensorNode(sensorStrs[i])
-            self.assertEqual(node.getSensorType().tokenType, tst[0])
+            self.assertEqual(node.sensorType.tokenType, tst[0])
             if isinstance(node, DirectedSensorNode):
-                self.assertEqual(node.getValue().evaluate(), tst[2])
+                self.assertEqual(node.value.evaluate(), tst[2])
             elif isinstance(node, SmellNode):
                 self.assertEqual(tst[0], TOKENS.T_SMELL)
 
@@ -108,17 +108,17 @@ class TestParser(unittest.TestCase):
         node = parser.parseFactor()
         self.assertIsInstance(node, MemNode)
         node = cast(MemNode, node)
-        self.assertEqual(node.getValue().evaluate(), 0)
+        self.assertEqual(node.value.evaluate(), 0)
 
         node = parser.parseFactor()
         self.assertIsInstance(node, MemNode)
         node = cast(MemNode, node)
-        self.assertEqual(node.getValue().evaluate(), 1)
+        self.assertEqual(node.value.evaluate(), 1)
 
         node = parser.parseFactor()
         self.assertIsInstance(node, MemNode)
         node = cast(MemNode, node)
-        self.assertEqual(node.getValue().evaluate(), 2)
+        self.assertEqual(node.value.evaluate(), 2)
 
     def testParseUnaryOperator(self):
         parser = self.getParser("-5 -mem[1]")
@@ -201,7 +201,7 @@ class TestParser(unittest.TestCase):
         content = "".join(lineContent)
         parser = self.getParser(content)
         program = parser.parse()
-        self.assertEqual(13, len(program.getRules()))
+        self.assertEqual(13, len(program.rules))
 
         # POSTURE != 17 --> POSTURE := 17; // we are species 17!
         rule = program.rules[0]
@@ -214,7 +214,7 @@ class TestParser(unittest.TestCase):
         self.assertEqual(update.source.evaluate(), 17)
         memNode = update.destination
         self.assertIsInstance(memNode, MemNode)
-        self.assertEqual(memNode.getValue().evaluate(), 6)
+        self.assertEqual(memNode.value.evaluate(), 6)
         prettyPrint = "POSTURE != 17 --> \n     POSTURE := 17\n     ;\n"
         self.assertEqual(prettyPrint, str(rule))
 
@@ -232,7 +232,7 @@ class TestParser(unittest.TestCase):
         leftOperand = leftOperand.leftOperand
         self.assertIsInstance(leftOperand, MemNode)
         leftOperand = cast(MemNode, leftOperand)
-        self.assertEqual(leftOperand.getValue().evaluate(), 4)
+        self.assertEqual(leftOperand.value.evaluate(), 4)
         command = rule.commands[0]
         self.assertIsInstance(command, Action)
         command = cast(Action, command)

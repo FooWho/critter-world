@@ -37,8 +37,8 @@ def main():
     # mutator.faultInjection(ast)
 
     if mutator.mutate(ast, 1):
-        # print(str(ast.rootNode))
-        pass
+        print(str(ast.rootNode))
+        # pass
 
 
 if __name__ == "__main__":

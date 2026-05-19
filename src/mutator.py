@@ -82,7 +82,9 @@ class Mutator:
                 self.numberFaultInjector(locus)
                 return True
             case MemNode():
-                pass
+                locus = cast(tuple[MemNode, ASTNode], locus)
+                self.memNodeFaultInjector(locus)
+                return True
             case SensorNode():
                 locus = cast(tuple[SensorNode, ASTNode], locus)
                 self.sensorFaultInjector(locus)
@@ -98,6 +100,10 @@ class Mutator:
             case Rule():
                 locus = cast(tuple[Rule, Program], locus)
                 self.ruleFaultInjector(locus)
+                return True
+            case UnaryOperator():
+                locus = cast(tuple[UnaryOperator, ASTNode], locus)
+                self.unaryOperatorFaultInjector(locus)
                 return True
             case _:
                 print("Got skunked")
@@ -251,6 +257,28 @@ class Mutator:
             case _:
                 raise NotImplementedError(
                     f"Choice {choice} for sensorFaultInjector() not implemented."
+                )
+
+    def memNodeFaultInjector(self, faultLocus: tuple[MemNode, ASTNode]) -> None:
+        originalNode = faultLocus[0]
+        parentNode = faultLocus[1]
+        choice = random.choice([0])
+        match choice:
+            case _:
+                raise NotImplementedError(
+                    f"Choice {choice} for memNodeFaultInjector() not implemented."
+                )
+
+    def unaryOperatorFaultInjector(
+        self, faultLocus: tuple[UnaryOperator, ASTNode]
+    ) -> None:
+        originalNode = faultLocus[0]
+        parentNode = faultLocus[1]
+        choice = random.choice([0])
+        match choice:
+            case _:
+                raise NotImplementedError(
+                    f"Choice {choice} for unaryOperatorFaultInjector() not implemented."
                 )
 
     def generateFaultLocus(self, ast: AbstractSyntaxTree) -> tuple[ASTNode, ASTNode]:

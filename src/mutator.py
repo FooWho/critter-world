@@ -91,12 +91,15 @@ class Mutator:
                 return True
             case BinaryOperator():
                 locus = cast(tuple[BinaryOperator, ASTNode], locus)
-                self.binaryOperationFaultInjector(locus)
+                self.binaryOperatorFaultInjector(locus)
                 return True
             case LogicalOperator():
                 locus = cast(tuple[LogicalOperator, ASTNode], locus)
-                self.logicalOperationFaultInjector(locus)
+                self.logicalOperatorFaultInjector(locus)
                 return True
+            case RelationalOperator():
+                locus = cast(tuple[RelationalOperator, ASTNode], locus)
+                self.relationalOperatorFaultInjector(locus)
             case Rule():
                 locus = cast(tuple[Rule, Program], locus)
                 self.ruleFaultInjector(locus)
@@ -195,7 +198,7 @@ class Mutator:
             case _:
                 raise RuntimeError("This should never happen.")
 
-    def binaryOperationFaultInjector(
+    def binaryOperatorFaultInjector(
         self, faultLocus: tuple[BinaryOperator, ASTNode]
     ) -> None:
         originalNode = faultLocus[0]
@@ -204,18 +207,39 @@ class Mutator:
         match choice:
             case 2:
                 # swap
-                self.mutateSwapBinaryOperation(originalNode)
+                self.mutateSwapBinaryOperator(originalNode)
             case _:
                 raise NotImplementedError(
                     f"Choice {choice} for binaryOperationFaultInjector() not implimented."
                 )
 
-    def mutateSwapBinaryOperation(self, binaryOperation: BinaryOperator) -> None:
-        tmp = binaryOperation.leftOperand
-        binaryOperation.leftOperand = binaryOperation.rightOperand
-        binaryOperation.rightOperand = tmp
+    def mutateSwapBinaryOperator(self, binaryOperator: BinaryOperator) -> None:
+        tmp = binaryOperator.leftOperand
+        binaryOperator.leftOperand = binaryOperator.rightOperand
+        binaryOperator.rightOperand = tmp
 
-    def logicalOperationFaultInjector(
+    def relationalOperatorFaultInjector(
+        self, faultLocus: tuple[RelationalOperator, ASTNode]
+    ) -> None:
+        originalNode = faultLocus[0]
+        parentNode = faultLocus[1]
+        choice = random.choice([0])
+        match choice:
+            case 2:
+                self.mutateSwapRelationalOperator(originalNode)
+            case _:
+                raise NotImplementedError(
+                    f"Choice {choice} for relationOperationFaultInjector() not implimented."
+                )
+
+    def mutateSwapRelationalOperator(
+        self, relationalOperator: RelationalOperator
+    ) -> None:
+        tmp = relationalOperator.leftOperand
+        relationalOperator.leftOperand = relationalOperator.rightOperand
+        relationalOperator.rightOperand = tmp
+
+    def logicalOperatorFaultInjector(
         self, faultLocus: tuple[LogicalOperator, ASTNode]
     ) -> None:
         originalNode = faultLocus[0]
@@ -223,16 +247,16 @@ class Mutator:
         choice = random.choice([2])
         match choice:
             case 2:
-                self.mutateSwapLogicalOperation(originalNode)
+                self.mutateSwapLogicalOperator(originalNode)
             case _:
                 raise NotImplementedError(
                     f"Choice {choice} for logicalOperatorFaultInjector() not implemented."
                 )
 
-    def mutateSwapLogicalOperation(self, logicalOperation: LogicalOperator) -> None:
-        tmp = logicalOperation.leftOperand
-        logicalOperation.leftOperand = logicalOperation.rightOperand
-        logicalOperation.rightOperand = tmp
+    def mutateSwapLogicalOperator(self, logicalOperator: LogicalOperator) -> None:
+        tmp = logicalOperator.leftOperand
+        logicalOperator.leftOperand = logicalOperator.rightOperand
+        logicalOperator.rightOperand = tmp
 
     def ruleFaultInjector(self, faultLocus: tuple[Rule, Program]) -> None:
         originalNode = faultLocus[0]

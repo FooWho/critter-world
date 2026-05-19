@@ -16,6 +16,7 @@ from abstractSyntaxTree import (
     RelationalOperator,
     LogicalOperator,
     Update,
+    Action,
     Rule,
 )
 
@@ -108,6 +109,10 @@ class Mutator:
                 locus = cast(tuple[UnaryOperator, ASTNode], locus)
                 self.unaryOperatorFaultInjector(locus)
                 return True
+            case Update():
+                pass
+            case Action():
+                pass
             case _:
                 print("Got skunked")
                 return False

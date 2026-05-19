@@ -24,9 +24,11 @@ from abstractSyntaxTree import (
 class Mutator:
 
     def __init__(self, mutationProbability: float = 0.0) -> None:
+
         self.mutationProbability = mutationProbability
 
     def getWeightedRandom(self):
+
         loc = random.choice([-1, 1])
         beta = 1.5
         variation = random.expovariate(1 / beta) * random.choice([-1, 1])
@@ -75,11 +77,12 @@ class Mutator:
         """
 
     def mutate(self, ast: AbstractSyntaxTree, mutations: int) -> bool:
+
         self.ast: AbstractSyntaxTree = ast
         locus = self.generateFaultLocus(ast)
         match locus[0]:
             case Number():
-                locus = cast(tuple[Number, ASTNode], locus)
+                locus = cast(tuple[Number, ExpressionNode], locus)
                 self.numberFaultInjector(locus)
                 return True
             case MemNode():
@@ -101,6 +104,7 @@ class Mutator:
             case RelationalOperator():
                 locus = cast(tuple[RelationalOperator, ASTNode], locus)
                 self.relationalOperatorFaultInjector(locus)
+                return True
             case Rule():
                 locus = cast(tuple[Rule, Program], locus)
                 self.ruleFaultInjector(locus)
@@ -110,35 +114,36 @@ class Mutator:
                 self.unaryOperatorFaultInjector(locus)
                 return True
             case Update():
-                pass
+                raise NotImplementedError("updateFaultInjector() not implemented.")
             case Action():
-                pass
+                raise NotImplementedError("actionFaultInjector() not implemented.")
             case _:
                 print("Got skunked")
                 return False
 
-    def numberFaultInjector(self, faultLocus: tuple[Number, ASTNode]) -> None:
+    def numberFaultInjector(self, faultLocus: tuple[Number, ExpressionNode]) -> None:
+
         choice = random.choice([4, 5])
-        numberNode = faultLocus[0]
-        parentNode = faultLocus[1]
         match choice:
             case 4:
                 # Transform
-                amount = self.getWeightedRandom()
-                self.mutateTransformNumber(numberNode, amount)
+                self.mutateTransformNumber(faultLocus)
             case 5:
                 # Insert
-                mutation = self.mutateInsertNumber(numberNode)
-                self.updateInsertion(mutation, faultLocus)
+                self.mutateInsertNumber(faultLocus)
             case _:
                 raise NotImplementedError(
                     f"Choice {choice} for numberFaultInjector() not implemented."
                 )
 
-    def mutateTransformNumber(self, number: Number, amount: int) -> None:
-        number.value += amount
+    def mutateTransformNumber(self, faultLocus: tuple[Number, ExpressionNode]) -> None:
 
-    def mutateInsertNumber(self, number: Number) -> ExpressionNode:
+        numberNode = faultLocus[0]
+        parentNode = faultLocus[1]
+        amount = self.getWeightedRandom()
+        numberNode.value += amount
+
+    def mutateInsertNumber(self, faultLocus: tuple[Number, ExpressionNode]) -> None:
         operator_map = {
             TOKENS.T_ASSIGN: ":=",
             TOKENS.T_LEQU: "<=",
@@ -158,12 +163,16 @@ class Mutator:
             TOKENS.T_NEARBY: "nearby",
             TOKENS.T_RANDOM: "random",
         }
+        numberNode = faultLocus[0]
+        parentNode = faultLocus[1]
         choice = random.choice([0, 1, 2])
         match choice:
             case 0:
                 # Insert UnaryOperator
-                unaryOperator = UnaryOperator(TokenLexeme(TOKENS.T_MINUS, "-"), number)
-                return unaryOperator
+                unaryOperator = UnaryOperator(
+                    TokenLexeme(TOKENS.T_MINUS, "-"), numberNode
+                )
+                self.updateInsertion(unaryOperator, faultLocus)
             case 1:
                 # Insert BinaryOperator
                 choice = random.choice(
@@ -171,21 +180,22 @@ class Mutator:
                 )
                 side = random.choice(["left", "right"])
                 op = operator_map.get(choice) or ""
-                expressions = self.ast.getExpressions()
+                expressions = self.ast.getNodesByType(ExpressionNode)
                 expression = random.choice(expressions)
                 otherExpression = cast(ExpressionNode, expression.copyNode())
                 if side == "left":
-                    return BinaryOperator(
-                        leftOperand=number,
+                    binaryOperator = BinaryOperator(
+                        leftOperand=numberNode,
                         operator=TokenLexeme(choice, op),
                         rightOperand=otherExpression,
                     )
                 else:
-                    return BinaryOperator(
+                    binaryOperator = BinaryOperator(
                         leftOperand=otherExpression,
                         operator=TokenLexeme(choice, op),
-                        rightOperand=number,
+                        rightOperand=numberNode,
                     )
+                self.updateInsertion(binaryOperator, faultLocus)
             case 2:
                 # Insert MemNode, SensorNode
                 choice = random.choice(
@@ -195,11 +205,15 @@ class Mutator:
                 token = Token(choice, lexeme, 0, 0)
                 match choice:
                     case TOKENS.T_MEM:
-                        return MemNode(number)
+                        memNode = MemNode(numberNode)
+                        self.updateInsertion(memNode, faultLocus)
                     case TOKENS.T_AHEAD | TOKENS.T_NEARBY | TOKENS.T_RANDOM:
-                        return DirectedSensorNode(token, number)
+                        sensorNode = DirectedSensorNode(token, numberNode)
+                        self.updateInsertion(sensorNode, faultLocus)
                     case _:
-                        return number
+                        raise RuntimeError(
+                            "This shouln't happen - mutateInsertNumber()."
+                        )
             case _:
                 raise RuntimeError("This should never happen.")
 

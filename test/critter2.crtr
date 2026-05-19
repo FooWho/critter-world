@@ -5,6 +5,7 @@ offense: 1
 size: 1
 energy: 250
 posture: 0
+
 mem[6] != 17 --> mem[6] := 17; // we are species 17!
 nearby[3] = 0 and mem[4] > 2500 --> bud;
 {mem[4] > mem[3] * 400 and mem[3] < 7} --> grow;

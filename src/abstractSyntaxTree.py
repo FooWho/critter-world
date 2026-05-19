@@ -1,7 +1,9 @@
 from __future__ import annotations
-from typing import Any, ClassVar, Iterator
+from typing import Any, ClassVar, Iterator, TypeVar, Generator, TYPE_CHECKING
 from schemas import TokenLexeme, TOKENS, Token, SET_MULOPS, SET_ADDOPS, T_NONE
 import copy
+
+T = TypeVar("T", bound="ASTNode")
 
 
 class AbstractSyntaxTree:
@@ -9,22 +11,17 @@ class AbstractSyntaxTree:
     def __init__(self, rootNode: Program | None = None) -> None:
         self.rootNode = rootNode or Program()
         self.nodeCount = countNodes(self.rootNode)
-        self.expressions: list[ExpressionNode] = self.getExpressions()
+        self.expressions: list[ExpressionNode]
 
-    def getExpressions(self) -> list[ExpressionNode]:
-        expressions: list[ExpressionNode] = []
-        stack: list[ASTNode] = list(reversed(list(self.rootNode)))
+    def _walk(self, currentNode: ASTNode) -> Generator[ASTNode, None, None]:
+        yield currentNode
+        for child in currentNode:
+            yield from self._walk(child)
 
-        while stack:
-            current = stack.pop()
-            if isinstance(current, ExpressionNode):
-                expressions.append(current)
-            try:
-                children = list(current)
-                stack.extend(reversed(children))
-            except TypeError:
-                pass  # This node had no children
-        return expressions
+    def getNodesByType(self, nodeType: type[T]) -> list[T]:
+        return [
+            node for node in self._walk(self.rootNode) if isinstance(node, nodeType)
+        ]
 
     def copyProgram(self) -> Program:
         program = copy.deepcopy(self.rootNode)

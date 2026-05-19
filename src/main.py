@@ -1,3 +1,4 @@
+from __future__ import annotations
 from lexer import Lexer
 from schemas import CritterParseError, Token, TOKENS
 from parser import Parser
@@ -11,7 +12,7 @@ from abstractSyntaxTree import (
     ExpressionNode,
     countNodes,
 )
-from typing import TYPE_CHECKING
+
 from mutator import Mutator
 
 

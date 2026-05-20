@@ -4,6 +4,7 @@ import random, math
 from schemas import TOKENS, Token, TokenLexeme
 from abstractSyntaxTree import (
     AbstractSyntaxTree,
+    countNodes,
     ASTNode,
     Program,
     ExpressionNode,
@@ -172,10 +173,7 @@ class Mutator:
         match choice:
             case 0:
                 # Insert UnaryOperator
-                unaryOperator = UnaryOperator(
-                    TokenLexeme(TOKENS.T_MINUS, "-"), numberNode
-                )
-                self.updateInsertion(unaryOperator, faultLocus)
+                mutation = UnaryOperator(TokenLexeme(TOKENS.T_MINUS, "-"), numberNode)
             case 1:
                 # Insert BinaryOperator
                 choice = random.choice(
@@ -187,18 +185,17 @@ class Mutator:
                 expression = random.choice(expressions)
                 otherExpression = cast(ExpressionNode, expression.copyNode())
                 if side == "left":
-                    binaryOperator = BinaryOperator(
+                    mutation = BinaryOperator(
                         leftOperand=numberNode,
                         operator=TokenLexeme(choice, op),
                         rightOperand=otherExpression,
                     )
                 else:
-                    binaryOperator = BinaryOperator(
+                    mutation = BinaryOperator(
                         leftOperand=otherExpression,
                         operator=TokenLexeme(choice, op),
                         rightOperand=numberNode,
                     )
-                self.updateInsertion(binaryOperator, faultLocus)
             case 2:
                 # Insert MemNode, SensorNode
                 choice = random.choice(
@@ -208,17 +205,17 @@ class Mutator:
                 token = Token(choice, lexeme, 0, 0)
                 match choice:
                     case TOKENS.T_MEM:
-                        memNode = MemNode(numberNode)
-                        self.updateInsertion(memNode, faultLocus)
+                        mutation = MemNode(numberNode)
                     case TOKENS.T_AHEAD | TOKENS.T_NEARBY | TOKENS.T_RANDOM:
-                        sensorNode = DirectedSensorNode(token, numberNode)
-                        self.updateInsertion(sensorNode, faultLocus)
+                        mutation = DirectedSensorNode(token, numberNode)
                     case _:
                         raise RuntimeError(
                             "This shouln't happen - mutateInsertNumber()."
                         )
             case _:
                 raise RuntimeError("This should never happen.")
+        self.updateInsertion(mutation, faultLocus)
+        self.ast.nodeCount += countNodes(mutation) - 1
 
     def mutateReplaceNumber(self, faultLocus: tuple[Number, ExpressionNode]) -> None:
         originalNode = faultLocus[0]

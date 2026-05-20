@@ -424,7 +424,7 @@ class DirectedSensorNode(SensorNode):
     ) -> None:
         super().__init__(sensorType)
 
-        self.value = value or Number()
+        self.value: ExpressionNode = value or Number()
 
     def __str__(self) -> str:
         return f"{self.sensorType.lexeme}[{self.value}]"

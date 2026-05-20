@@ -24,6 +24,26 @@ from abstractSyntaxTree import (
 
 class Mutator:
 
+    operatorMap = {
+        TOKENS.T_ASSIGN: ":=",
+        TOKENS.T_LEQU: "<=",
+        TOKENS.T_GEQU: ">=",
+        TOKENS.T_NEQU: "!=",
+        TOKENS.T_LESS: "<",
+        TOKENS.T_GREAT: ">",
+        TOKENS.T_EQU: "=",
+        TOKENS.T_COMM: "-->",
+        TOKENS.T_PLUS: "+",
+        TOKENS.T_MINUS: "-",
+        TOKENS.T_STAR: "*",
+        TOKENS.T_DIV: "/",
+        TOKENS.T_MOD: "mod",
+        TOKENS.T_MEM: "mem",
+        TOKENS.T_AHEAD: "ahead",
+        TOKENS.T_NEARBY: "nearby",
+        TOKENS.T_RANDOM: "random",
+    }
+
     def __init__(self, mutationProbability: float = 0.0) -> None:
 
         self.mutationProbability = mutationProbability
@@ -87,7 +107,7 @@ class Mutator:
                 self.numberFaultInjector(locus)
                 return True
             case MemNode():
-                locus = cast(tuple[MemNode, ASTNode], locus)
+                locus = cast(tuple[MemNode, Update | ExpressionNode], locus)
                 self.memNodeFaultInjector(locus)
                 return True
             case SensorNode():
@@ -148,45 +168,27 @@ class Mutator:
         numberNode.value += amount
 
     def mutateInsertNumber(self, faultLocus: tuple[Number, ExpressionNode]) -> None:
-        operator_map = {
-            TOKENS.T_ASSIGN: ":=",
-            TOKENS.T_LEQU: "<=",
-            TOKENS.T_GEQU: ">=",
-            TOKENS.T_NEQU: "!=",
-            TOKENS.T_LESS: "<",
-            TOKENS.T_GREAT: ">",
-            TOKENS.T_EQU: "=",
-            TOKENS.T_COMM: "-->",
-            TOKENS.T_PLUS: "+",
-            TOKENS.T_MINUS: "-",
-            TOKENS.T_STAR: "*",
-            TOKENS.T_DIV: "/",
-            TOKENS.T_MOD: "mod",
-            TOKENS.T_MEM: "mem",
-            TOKENS.T_AHEAD: "ahead",
-            TOKENS.T_NEARBY: "nearby",
-            TOKENS.T_RANDOM: "random",
-        }
-        numberNode = faultLocus[0]
+
+        originalNode = faultLocus[0]
         parentNode = faultLocus[1]
         choice = random.choice([0, 1, 2])
         match choice:
             case 0:
                 # Insert UnaryOperator
-                mutation = UnaryOperator(TokenLexeme(TOKENS.T_MINUS, "-"), numberNode)
+                mutation = UnaryOperator(TokenLexeme(TOKENS.T_MINUS, "-"), originalNode)
             case 1:
                 # Insert BinaryOperator
                 choice = random.choice(
                     [TOKENS.T_MINUS, TOKENS.T_STAR, TOKENS.T_DIV, TOKENS.T_PLUS]
                 )
                 side = random.choice(["left", "right"])
-                op = operator_map.get(choice) or ""
+                op = Mutator.operatorMap.get(choice) or ""
                 expressions = self.ast.getNodesByType(ExpressionNode)
                 expression = random.choice(expressions)
                 otherExpression = cast(ExpressionNode, expression.copyNode())
                 if side == "left":
                     mutation = BinaryOperator(
-                        leftOperand=numberNode,
+                        leftOperand=originalNode,
                         operator=TokenLexeme(choice, op),
                         rightOperand=otherExpression,
                     )
@@ -194,20 +196,20 @@ class Mutator:
                     mutation = BinaryOperator(
                         leftOperand=otherExpression,
                         operator=TokenLexeme(choice, op),
-                        rightOperand=numberNode,
+                        rightOperand=originalNode,
                     )
             case 2:
-                # Insert MemNode, SensorNode
+                # Insert MemNode, DirectedSensorNode
                 choice = random.choice(
                     [TOKENS.T_MEM, TOKENS.T_AHEAD, TOKENS.T_NEARBY, TOKENS.T_RANDOM]
                 )
-                lexeme = operator_map.get(choice) or ""
+                lexeme = Mutator.operatorMap.get(choice) or ""
                 token = Token(choice, lexeme, 0, 0)
                 match choice:
                     case TOKENS.T_MEM:
-                        mutation = MemNode(numberNode)
+                        mutation = MemNode(originalNode)
                     case TOKENS.T_AHEAD | TOKENS.T_NEARBY | TOKENS.T_RANDOM:
-                        mutation = DirectedSensorNode(token, numberNode)
+                        mutation = DirectedSensorNode(token, originalNode)
                     case _:
                         raise RuntimeError(
                             "This shouln't happen - mutateInsertNumber()."
@@ -215,7 +217,7 @@ class Mutator:
             case _:
                 raise RuntimeError("This should never happen.")
         self.updateInsertion(mutation, faultLocus)
-        self.ast.nodeCount += countNodes(mutation) - 1
+        self.ast.nodeCount = countNodes(self.ast.rootNode)
 
     def mutateReplaceNumber(self, faultLocus: tuple[Number, ExpressionNode]) -> None:
         originalNode = faultLocus[0]
@@ -308,15 +310,85 @@ class Mutator:
                     f"Choice {choice} for sensorFaultInjector() not implemented."
                 )
 
-    def memNodeFaultInjector(self, faultLocus: tuple[MemNode, ASTNode]) -> None:
+    def memNodeFaultInjector(
+        self, faultLocus: tuple[MemNode, Update | ExpressionNode]
+    ) -> None:
         originalNode = faultLocus[0]
         parentNode = faultLocus[1]
-        choice = random.choice([0])
+        if isinstance(parentNode, Update):
+            # If parent is an update, the only valid mutation for this node is Replace
+            choice = 3
+        else:
+            choice = random.choice([3, 5])
         match choice:
+            case 3:
+                # Replace
+                self.mutateReplaceMemNode(faultLocus)
+            case 5:
+                # Insert
+                faultLocus = cast(tuple[MemNode, ExpressionNode], faultLocus)
+                self.mutateInsertMemNode(faultLocus)
             case _:
                 raise NotImplementedError(
                     f"Choice {choice} for memNodeFaultInjector() not implemented."
                 )
+
+    def mutateReplaceMemNode(self, faultLocus: tuple[MemNode, ASTNode]) -> None:
+        originalNode = faultLocus[0]
+        parentNode = faultLocus[1]
+        if isinstance(parentNode, Update):
+            # If the parent is an Update, the replacement must be another MemNode
+            mutation = random.choice(self.ast.getNodesByType(MemNode))
+            self.updateInsertion(mutation, faultLocus)
+        else:
+            # If the parent is not an Update, the MemNode is part of an Expression and can be replaced by any ExpressionNode
+            mutation = random.choice(self.ast.getNodesByType(ExpressionNode))
+            self.updateInsertion(mutation, faultLocus)
+
+    def mutateInsertMemNode(self, faultLocus: tuple[MemNode, ExpressionNode]) -> None:
+        originalNode = faultLocus[0]
+        parentNode = faultLocus[1]
+
+        choice = random.choice([0, 1, 2])
+        match choice:
+            case 0:
+                # UnaryOperator
+                mutation = UnaryOperator(TokenLexeme(TOKENS.T_MINUS, "-"), originalNode)
+            case 1:
+                # BinaryOperator
+                choice = random.choice(
+                    [TOKENS.T_MINUS, TOKENS.T_STAR, TOKENS.T_DIV, TOKENS.T_PLUS]
+                )
+                side = random.choice(["left", "right"])
+                op = Mutator.operatorMap.get(choice) or ""
+                expressions = self.ast.getNodesByType(ExpressionNode)
+                expression = random.choice(expressions)
+                otherExpression = cast(ExpressionNode, expression.copyNode())
+                if side == "left":
+                    mutation = BinaryOperator(
+                        leftOperand=originalNode,
+                        operator=TokenLexeme(choice, op),
+                        rightOperand=otherExpression,
+                    )
+                else:
+                    mutation = BinaryOperator(
+                        leftOperand=otherExpression,
+                        operator=TokenLexeme(choice, op),
+                        rightOperand=originalNode,
+                    )
+            case 2:
+                # DirectedSensorNode
+                choice = random.choice(
+                    [TOKENS.T_AHEAD, TOKENS.T_NEARBY, TOKENS.T_RANDOM]
+                )
+                lexeme = Mutator.operatorMap.get(choice) or ""
+                token = Token(choice, lexeme, 0, 0)
+                mutation = DirectedSensorNode(token, originalNode)
+            case _:
+                raise RuntimeError("This shouldn't happen.")
+
+        self.updateInsertion(mutation, faultLocus)
+        self.ast.nodeCount = countNodes(self.ast.rootNode)
 
     def unaryOperatorFaultInjector(
         self, faultLocus: tuple[UnaryOperator, ASTNode]
@@ -356,14 +428,21 @@ class Mutator:
             f"Mutator.faultLocus() failed to find a locus of mutation. locus:{locus} nodeCount:{nodeCount}"
         )
 
-    def updateInsertion(self, mutation: ExpressionNode, locus: tuple[Number, ASTNode]):
+    def updateInsertion(self, mutation: ASTNode, locus: tuple[ASTNode, ASTNode]):
         originalNode = locus[0]
         parentNode = locus[1]
         match parentNode:
             case UnaryOperator():
+                if not isinstance(mutation, ExpressionNode):
+                    raise RuntimeError(
+                        "Child of UnaryOperator must be an ExpressionNode - updateInsertion()"
+                    )
                 parentNode.operand = mutation
             case RelationalOperator():
-                print(f"We got a {type(mutation)}")
+                if not isinstance(mutation, ExpressionNode):
+                    raise RuntimeError(
+                        "Child of RelationalOperator must be an ExpressionNode - updateInsertion()"
+                    )
                 if originalNode == parentNode.leftOperand:
                     parentNode.leftOperand = mutation
                 elif originalNode == parentNode.rightOperand:
@@ -371,8 +450,23 @@ class Mutator:
                 else:
                     raise RuntimeError("Couldn't match the child in updateInsertion()")
             case Update():
-                parentNode.source = mutation
+                if parentNode.source is originalNode and isinstance(
+                    mutation, ExpressionNode
+                ):
+                    parentNode.source = mutation
+                elif parentNode.destination is originalNode and isinstance(
+                    mutation, MemNode
+                ):
+                    parentNode.destination = mutation
+                else:
+                    raise RuntimeError(
+                        "Source of Update must be an ExpressionNode or Destination must be a MemNode."
+                    )
             case BinaryOperator():
+                if not isinstance(mutation, ExpressionNode):
+                    raise RuntimeError(
+                        "Operands of BinaryOperator must be ExpressionNodes"
+                    )
                 if parentNode.leftOperand == originalNode:
                     parentNode.leftOperand = mutation
                 elif parentNode.rightOperand == originalNode:
@@ -380,9 +474,15 @@ class Mutator:
                 else:
                     raise RuntimeError("We did not match the left or right operand.")
             case DirectedSensorNode():
-                parentNode.value = mutation
+                if isinstance(mutation, ExpressionNode):
+                    parentNode.value = mutation
+                else:
+                    raise RuntimeError(
+                        "Value of DirectedSensorNode must be an ExpressionNode"
+                    )
             case _:
                 print("IN DEFAULT")
                 print(
                     f"We got a (mutation) {type(mutation)} (parent) {type(parentNode)}"
                 )
+        self.ast.nodeCount = countNodes(self.ast.rootNode)

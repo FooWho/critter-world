@@ -4,7 +4,15 @@ from schemas import CritterParseError, Token, TOKENS
 from parser import Parser
 from abstractSyntaxTree import (
     AbstractSyntaxTree,
+    ASTNode,
     Program,
+    BooleanOperator,
+    BinaryOperator,
+    UnaryOperator,
+    LogicalOperator,
+    RelationalOperator,
+    Action,
+    Update,
     Rule,
     Command,
     Number,

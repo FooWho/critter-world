@@ -142,9 +142,13 @@ class Mutator:
                 print("Got skunked")
                 return False
 
-    def numberFaultInjector(self, faultLocus: tuple[Number, ExpressionNode]) -> None:
-
-        choice = random.choice([3, 4, 5])
+    def numberFaultInjector(
+        self, faultLocus: tuple[Number, ASTNode], faultType: int | None = None
+    ) -> None:
+        if faultType:
+            choice = faultType
+        else:
+            choice = random.choice([3, 4, 5])
         match choice:
             case 3:
                 # Replace
@@ -160,14 +164,30 @@ class Mutator:
                     f"Choice {choice} for numberFaultInjector() not implemented."
                 )
 
-    def mutateTransformNumber(self, faultLocus: tuple[Number, ExpressionNode]) -> None:
+    def mutateTransformNumber(
+        self, faultLocus: tuple[Number, ASTNode], amount: int | None = None
+    ) -> None:
 
         numberNode = faultLocus[0]
         parentNode = faultLocus[1]
-        amount = self.getWeightedRandom()
-        numberNode.value += amount
+        if not amount:
+            amount = self.getWeightedRandom()
 
-    def mutateInsertNumber(self, faultLocus: tuple[Number, ExpressionNode]) -> None:
+        if isinstance(parentNode, UnaryOperator):
+            # We are going to tranform a number that is negative, we might need to change signs
+            if (parentNode.evaluate() + amount) > 0:
+                # New valaue is greater than 0, get the new value and connect mutation to grandparent
+                grandParent = self.ast.getParentByNode(parentNode)
+
+        if numberNode.value + amount < 0:
+            newValue = abs(numberNode.value + amount)
+            number = Number(Token(TOKENS.T_NUMBER, str(newValue), 0, 0))
+            mutation = UnaryOperator(TokenLexeme(TOKENS.T_MINUS, "-"), number)
+            self.updateInsertion(mutation, faultLocus)
+        else:
+            numberNode.value += amount
+
+    def mutateInsertNumber(self, faultLocus: tuple[Number, ASTNode]) -> None:
 
         originalNode = faultLocus[0]
         parentNode = faultLocus[1]
@@ -219,7 +239,7 @@ class Mutator:
         self.updateInsertion(mutation, faultLocus)
         self.ast.nodeCount = countNodes(self.ast.rootNode)
 
-    def mutateReplaceNumber(self, faultLocus: tuple[Number, ExpressionNode]) -> None:
+    def mutateReplaceNumber(self, faultLocus: tuple[Number, ASTNode]) -> None:
         originalNode = faultLocus[0]
         parentNode = faultLocus[1]
         number = random.choice(self.ast.getNodesByType(Number))

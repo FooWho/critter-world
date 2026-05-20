@@ -28,6 +28,12 @@ class AbstractSyntaxTree:
 
         return program
 
+    def getParentByNode(self, node: ASTNode) -> ASTNode | None:
+        for parentCandidate in self._walk(self.rootNode):
+            if node in parentCandidate:
+                return parentCandidate
+        return None
+
 
 class ASTNode:
     _children: ClassVar[tuple[str, ...]] = ()

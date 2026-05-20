@@ -123,8 +123,11 @@ class Mutator:
 
     def numberFaultInjector(self, faultLocus: tuple[Number, ExpressionNode]) -> None:
 
-        choice = random.choice([4, 5])
+        choice = random.choice([3, 4, 5])
         match choice:
+            case 3:
+                # Replace
+                self.mutateReplaceNumber(faultLocus)
             case 4:
                 # Transform
                 self.mutateTransformNumber(faultLocus)
@@ -216,6 +219,12 @@ class Mutator:
                         )
             case _:
                 raise RuntimeError("This should never happen.")
+
+    def mutateReplaceNumber(self, faultLocus: tuple[Number, ExpressionNode]) -> None:
+        originalNode = faultLocus[0]
+        parentNode = faultLocus[1]
+        number = random.choice(self.ast.getNodesByType(Number))
+        self.updateInsertion(number, faultLocus)
 
     def binaryOperatorFaultInjector(
         self, faultLocus: tuple[BinaryOperator, ASTNode]

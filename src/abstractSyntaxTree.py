@@ -315,14 +315,14 @@ class Number(ExpressionNode):
     _children = ()
 
     def __new__(cls, number: Token | None = None, value: int | None = None):
-        if number and value:
+        if number and value is not None:
             raise ValueError(
                 "Number can be created from a <Token> or a <Value>, not both."
             )
         candidate: int | None = None
         if number:
             candidate = int(number.lexeme)
-        elif value:
+        elif value is not None:
             candidate = value
         else:
             return super().__new__(cls)
@@ -332,7 +332,7 @@ class Number(ExpressionNode):
         return super().__new__(cls)
 
     def __init__(self, number: Token | None = None, value: int | None = None) -> None:
-        if number and value:
+        if number and value is not None:
             raise ValueError(
                 "Number can be created from a <Token> or a <Value>, not both."
             )
@@ -343,7 +343,7 @@ class Number(ExpressionNode):
                 )
             self._number = TokenLexeme(number.tokenType, number.lexeme)
             self._value = int(self.number.lexeme)
-        elif value:
+        elif value is not None:
             if value < 0:
                 raise ValueError(
                     "<Number> cannot be negative. You must create a <UnaryOperator>."

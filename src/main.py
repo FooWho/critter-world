@@ -26,9 +26,9 @@ from mutator import Mutator
 
 
 def main():
-    number = Number(value=-5)
-    number = cast(UnaryOperator, number)
-    number.operand.value = 5
+    lexer = Lexer()
+    parser = Parser(lexer.tokenize("--(--(---0)) = 5 --> wait;"))
+    program = parser.parse()
 
     lexer = Lexer()
     with open("test/critter1.crtr", "r", encoding="utf-8") as file:
@@ -47,10 +47,10 @@ def main():
     print("* Ok *")
     print(f"Nodes: {ast.nodeCount}")
 
-    mutator = Mutator()
+    mutator = Mutator(ast)
     # mutator.faultInjection(ast)
 
-    if mutator.mutate(ast, 1):
+    if mutator.mutate(1):
         print(str(ast.rootNode))
         # pass
 

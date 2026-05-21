@@ -44,8 +44,11 @@ class Mutator:
         TOKENS.T_RANDOM: "random",
     }
 
-    def __init__(self, mutationProbability: float = 0.0) -> None:
+    def __init__(
+        self, ast: AbstractSyntaxTree, mutationProbability: float = 0.0
+    ) -> None:
 
+        self.ast = ast
         self.mutationProbability = mutationProbability
 
     def getWeightedRandom(self):
@@ -97,10 +100,9 @@ class Mutator:
         one rule.
         """
 
-    def mutate(self, ast: AbstractSyntaxTree, mutations: int) -> bool:
+    def mutate(self, mutations: int) -> bool:
 
-        self.ast: AbstractSyntaxTree = ast
-        locus = self.generateFaultLocus(ast)
+        locus = self.generateFaultLocus()
         match locus[0]:
             case Number():
                 locus = cast(tuple[Number, ExpressionNode], locus)
@@ -170,11 +172,26 @@ class Mutator:
 
         numberNode = faultLocus[0]
         parentNode = faultLocus[1]
-        if not amount:
+
+        if amount is None:
             amount = self.getWeightedRandom()
-        mutationValue = numberNode.value + amount
+
+        isNegative = isinstance(parentNode, UnaryOperator)
+        current_value = -numberNode.value if isNegative else numberNode.value
+
+        mutationValue = current_value + amount
+
         mutation = Number(value=mutationValue)
-        self.updateInsertion(mutation, faultLocus)
+
+        if isNegative:
+            grandparent = self.ast.getParentByNode(parentNode)
+            if not grandparent:
+                raise RuntimeError(
+                    "Could not locate grandparent - mutateTransformNumber()"
+                )
+            self.updateInsertion(mutation, (parentNode, grandparent))
+        else:
+            self.updateInsertion(mutation, faultLocus)
 
     def mutateInsertNumber(self, faultLocus: tuple[Number, ASTNode]) -> None:
 
@@ -411,31 +428,16 @@ class Mutator:
                     f"Choice {choice} for unaryOperatorFaultInjector() not implemented."
                 )
 
-    def generateFaultLocus(self, ast: AbstractSyntaxTree) -> tuple[ASTNode, ASTNode]:
-        nodeCount = ast.nodeCount
-        locus = random.randint(1, nodeCount)
+    def generateFaultLocus(self) -> tuple[ASTNode, ASTNode]:
 
-        parent: ASTNode = ast.rootNode
-        children = list(parent)
-        childPairs = [(child, parent) for child in children]
+        nodes = [node for node in self.ast._walk(self.ast.rootNode)]
+        nodes.remove(self.ast.rootNode)
 
-        stack: list[tuple[ASTNode, ASTNode]] = []
-        stack.extend(reversed(childPairs))
-        count = 0
-        while stack and count <= locus:
-            current, parent = stack.pop()
-            count += 1
-            if count == locus:
-                return (current, parent)
-            try:
-                children = list(current)
-                childPairs = [(child, current) for child in children]
-                stack.extend(reversed(childPairs))
-            except TypeError:
-                pass  # This guy has no children
-        raise RuntimeError(
-            f"Mutator.faultLocus() failed to find a locus of mutation. locus:{locus} nodeCount:{nodeCount}"
-        )
+        node = random.choice(nodes)
+        parent = self.ast.getParentByNode(node)
+        if not parent:
+            raise RuntimeError(f"Unable to locate parent for {node}")
+        return (node, parent)
 
     def updateInsertion(self, mutation: ASTNode, locus: tuple[ASTNode, ASTNode]):
         originalNode = locus[0]

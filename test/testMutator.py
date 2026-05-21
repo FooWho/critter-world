@@ -64,27 +64,48 @@ class TestMutator(unittest.TestCase):
         self.astCritter4 = AbstractSyntaxTree(self.parser.parse())
 
     def testMutateTransformNumber(self):
-        mutator = Mutator()
-        program = self.createProgram("----5 = 5 --> wait;")
-        ast = AbstractSyntaxTree(program)
-        q = ast.rootNode.rules[0].condition.leftOperand.evaluate()
-        print(f"{q}")
         program = self.createProgram("1 < 3 --> wait;")
         ast = AbstractSyntaxTree(program)
-        mutator.ast = ast
+        mutator = Mutator(ast)
+
         parentNode = cast(RelationalOperator, program.rules[0].condition)
         originalNode: Number = cast(Number, parentNode.leftOperand)
         mutator.mutateTransformNumber((originalNode, parentNode), -5)
         mutation = parentNode.leftOperand
         self.assertIsInstance(mutation, UnaryOperator)
-        self.assertTrue(mutation is parentNode.leftOperand)
-        self.assertFalse(originalNode is parentNode.leftOperand)
         self.assertEqual(mutation.evaluate(), -4)
         originalNode = cast(Number, parentNode.rightOperand)
         self.assertEqual(originalNode.evaluate(), 3)
         mutator.mutateTransformNumber((originalNode, parentNode), 4)
-        self.assertTrue(originalNode is parentNode.rightOperand)
-        self.assertEqual(originalNode.evaluate(), 7)
+        self.assertIsInstance(parentNode.rightOperand, Number)
+        mutation = cast(Number, parentNode.rightOperand)
+        self.assertEqual(mutation.evaluate(), 7)
+
+        program = self.createProgram("-1 < 3 --> wait;")
+        ast = AbstractSyntaxTree(program)
+        mutator = Mutator(ast)
+        condition = cast(RelationalOperator, program.rules[0].condition)
+        parentNode = condition.leftOperand
+        self.assertIsInstance(parentNode, UnaryOperator)
+        self.assertEqual(parentNode.evaluate(), -1)
+        parentNode = cast(UnaryOperator, parentNode)
+        originalNode = cast(Number, parentNode.operand)
+        self.assertEqual(originalNode.value, 1)
+        mutator.mutateTransformNumber((originalNode, parentNode), 1)
+        self.assertIsInstance(condition.leftOperand, Number)
+        mutation = cast(Number, condition.leftOperand)
+        self.assertEqual(mutation.value, 0)
+
+    def testGenerateFaultLocus(self):
+        mutator = Mutator(self.astCritter1)
+        for i in range(0, 5):
+            faultLocus = mutator.generateFaultLocus()
+            childNode = faultLocus[0]
+            parentNode = faultLocus[1]
+            self.assertTrue(childNode in parentNode)
+
+    def testMutateInsertNumber(self):
+        pass
 
     def createProgram(self, programString: str) -> Program:
         parser = Parser(Lexer().tokenize(programString))

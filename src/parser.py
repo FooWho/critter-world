@@ -257,7 +257,7 @@ class Parser:
             raise CritterParseError(token, "]")
         return DirectedSensorNode(sensorToken, expression)
 
-    def parseNumber(self) -> Number:
+    def parseNumber(self) -> Number | UnaryOperator:
         token = self.getToken()
         if token.tokenType is not TOKENS.T_NUMBER:
             raise CritterParseError(token, "<Number>")

@@ -314,12 +314,44 @@ class UnaryOperator(ExpressionNode):
 class Number(ExpressionNode):
     _children = ()
 
-    def __init__(self, number: Token | None = None) -> None:
+    def __new__(cls, number: Token | None = None, value: int | None = None):
+        if number and value:
+            raise ValueError(
+                "Number can be created from a <Token> or a <Value>, not both."
+            )
+        candidate: int | None = None
         if number:
-            self.number = TokenLexeme(number.tokenType, number.lexeme)
-            self._value = int(self.number.lexeme)
+            candidate = int(number.lexeme)
+        elif value:
+            candidate = value
         else:
-            self.number = T_NONE
+            return super().__new__(cls)
+        if candidate < 0:
+            positiveNumber = Number(value=abs(candidate))
+            return UnaryOperator(TokenLexeme(TOKENS.T_MINUS, "-"), positiveNumber)
+        return super().__new__(cls)
+
+    def __init__(self, number: Token | None = None, value: int | None = None) -> None:
+        if number and value:
+            raise ValueError(
+                "Number can be created from a <Token> or a <Value>, not both."
+            )
+        if number:
+            if int(number.lexeme) < 0:
+                raise ValueError(
+                    "<Number> cannot be negative. You must create a <UnaryOperator>."
+                )
+            self._number = TokenLexeme(number.tokenType, number.lexeme)
+            self._value = int(self.number.lexeme)
+        elif value:
+            if value < 0:
+                raise ValueError(
+                    "<Number> cannot be negative. You must create a <UnaryOperator>."
+                )
+            self._number = TokenLexeme(TOKENS.T_NUMBER, str(value))
+            self._value = value
+        else:
+            self._number = T_NONE
             self._value = 0
 
     def __str__(self) -> str:
@@ -329,12 +361,29 @@ class Number(ExpressionNode):
         return self._value
 
     @property
+    def number(self) -> TokenLexeme:
+        return self._number
+
+    @number.setter
+    def number(self, number: TokenLexeme) -> None:
+        if int(number.lexeme) < 0:
+            raise ValueError(
+                "<Number> cannot be negative. You must create a <UnaryOperator>."
+            )
+        self._number = number
+        self._value = int(self._number.lexeme)
+
+    @property
     def value(self) -> int:
         return self._value
 
     @value.setter
     def value(self, value: int) -> None:
-        self.number = TokenLexeme(TOKENS.T_NUMBER, str(value))
+        if value < 0:
+            raise ValueError(
+                "<Number> cannot be negative. You must create a <UnaryOperator>."
+            )
+        self._number = TokenLexeme(TOKENS.T_NUMBER, str(value))
         self._value = value
 
 

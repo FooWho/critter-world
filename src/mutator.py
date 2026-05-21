@@ -172,20 +172,9 @@ class Mutator:
         parentNode = faultLocus[1]
         if not amount:
             amount = self.getWeightedRandom()
-
-        if isinstance(parentNode, UnaryOperator):
-            # We are going to tranform a number that is negative, we might need to change signs
-            if (parentNode.evaluate() + amount) > 0:
-                # New valaue is greater than 0, get the new value and connect mutation to grandparent
-                grandParent = self.ast.getParentByNode(parentNode)
-
-        if numberNode.value + amount < 0:
-            newValue = abs(numberNode.value + amount)
-            number = Number(Token(TOKENS.T_NUMBER, str(newValue), 0, 0))
-            mutation = UnaryOperator(TokenLexeme(TOKENS.T_MINUS, "-"), number)
-            self.updateInsertion(mutation, faultLocus)
-        else:
-            numberNode.value += amount
+        mutationValue = numberNode.value + amount
+        mutation = Number(value=mutationValue)
+        self.updateInsertion(mutation, faultLocus)
 
     def mutateInsertNumber(self, faultLocus: tuple[Number, ASTNode]) -> None:
 

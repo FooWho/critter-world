@@ -1,4 +1,5 @@
 from __future__ import annotations
+from typing import cast
 from lexer import Lexer
 from schemas import CritterParseError, Token, TOKENS
 from parser import Parser
@@ -26,6 +27,10 @@ from mutator import Mutator
 
 def main():
     lexer = Lexer()
+    parser = Parser(lexer.tokenize("--(--(---0)) = 5 --> wait;"))
+    program = parser.parse()
+
+    lexer = Lexer()
     with open("test/critter1.crtr", "r", encoding="utf-8") as file:
         lines = file.readlines()
     lineContent = lines[8:]
@@ -42,10 +47,10 @@ def main():
     print("* Ok *")
     print(f"Nodes: {ast.nodeCount}")
 
-    mutator = Mutator()
+    mutator = Mutator(ast)
     # mutator.faultInjection(ast)
 
-    if mutator.mutate(ast, 1):
+    if mutator.mutate(1):
         print(str(ast.rootNode))
         # pass
 

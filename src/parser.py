@@ -205,6 +205,11 @@ class Parser:
                 unOp = UnaryOperator()
                 unOp.operator = TokenLexeme(op.tokenType, op.lexeme)
                 unOp.operand = self.parseFactor()
+                if isinstance(unOp.operand, UnaryOperator):
+                    # Collapse double negative
+                    return unOp.operand.operand
+                if isinstance(unOp.operand, Number) and unOp.operand.value == 0:
+                    return unOp.operand
                 return unOp
             case TOKENS.T_L_PAREN:
                 token = self.getToken()
@@ -257,7 +262,7 @@ class Parser:
             raise CritterParseError(token, "]")
         return DirectedSensorNode(sensorToken, expression)
 
-    def parseNumber(self) -> Number:
+    def parseNumber(self) -> Number | UnaryOperator:
         token = self.getToken()
         if token.tokenType is not TOKENS.T_NUMBER:
             raise CritterParseError(token, "<Number>")

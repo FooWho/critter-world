@@ -6,6 +6,4 @@ size: 1
 energy: 250
 posture: 0
 
-POSTURE != 17 --> POSTURE := 17; // we are species 17!
-
-
+1 = 1 --> wait;

@@ -1,0 +1,113 @@
+from __future__ import annotations
+import unittest
+from lexer import Lexer
+from parser import Parser
+from schemas import TOKENS, CritterParseError, TokenLexeme, Token
+from typing import cast, LiteralString
+from abstractSyntaxTree import (
+    AbstractSyntaxTree,
+    Program,
+    MemNode,
+    SensorNode,
+    SmellNode,
+    DirectedSensorNode,
+    Number,
+    RelationalOperator,
+    BooleanOperator,
+    LogicalOperator,
+    BinaryOperator,
+    UnaryOperator,
+    Update,
+    Action,
+    ServeAction,
+    ExpressionNode,
+    Rule,
+    countNodes,
+)
+from mutator import Mutator
+
+
+class TestMutator(unittest.TestCase):
+
+    def setUp(self):
+        with open("test/critter1.crtr", "r", encoding="utf-8") as file:
+            lines = file.readlines()
+        lineContent = lines[8:]
+        content = "".join(lineContent)
+        self.lexer = Lexer()
+        tokens = self.lexer.tokenize(content)
+        self.parser = Parser(tokens)
+        self.astCritter1 = AbstractSyntaxTree(self.parser.parse())
+
+        with open("test/critter2.crtr", "r", encoding="utf-8") as file:
+            lines = file.readlines()
+        lineContent = lines[8:]
+        content = "".join(lineContent)
+        tokens = self.lexer.tokenize(content)
+        self.parser = Parser(tokens)
+        self.astCritter2 = AbstractSyntaxTree(self.parser.parse())
+
+        with open("test/critter3.crtr", "r", encoding="utf-8") as file:
+            lines = file.readlines()
+        lineContent = lines[8:]
+        content = "".join(lineContent)
+        tokens = self.lexer.tokenize(content)
+        self.parser = Parser(tokens)
+        self.astCritter3 = AbstractSyntaxTree(self.parser.parse())
+
+        with open("test/critter4.crtr", "r", encoding="utf-8") as file:
+            lines = file.readlines()
+        lineContent = lines[8:]
+        content = "".join(lineContent)
+        tokens = self.lexer.tokenize(content)
+        self.parser = Parser(tokens)
+        self.astCritter4 = AbstractSyntaxTree(self.parser.parse())
+
+    def testMutateTransformNumber(self):
+        program = self.createProgram("1 < 3 --> wait;")
+        ast = AbstractSyntaxTree(program)
+        mutator = Mutator(ast)
+
+        parentNode = cast(RelationalOperator, program.rules[0].condition)
+        originalNode: Number = cast(Number, parentNode.leftOperand)
+        mutator.mutateTransformNumber((originalNode, parentNode), -5)
+        mutation = parentNode.leftOperand
+        self.assertIsInstance(mutation, UnaryOperator)
+        self.assertEqual(mutation.evaluate(), -4)
+        originalNode = cast(Number, parentNode.rightOperand)
+        self.assertEqual(originalNode.evaluate(), 3)
+        mutator.mutateTransformNumber((originalNode, parentNode), 4)
+        self.assertIsInstance(parentNode.rightOperand, Number)
+        mutation = cast(Number, parentNode.rightOperand)
+        self.assertEqual(mutation.evaluate(), 7)
+
+        program = self.createProgram("-1 < 3 --> wait;")
+        ast = AbstractSyntaxTree(program)
+        mutator = Mutator(ast)
+        condition = cast(RelationalOperator, program.rules[0].condition)
+        parentNode = condition.leftOperand
+        self.assertIsInstance(parentNode, UnaryOperator)
+        self.assertEqual(parentNode.evaluate(), -1)
+        parentNode = cast(UnaryOperator, parentNode)
+        originalNode = cast(Number, parentNode.operand)
+        self.assertEqual(originalNode.value, 1)
+        mutator.mutateTransformNumber((originalNode, parentNode), 1)
+        self.assertIsInstance(condition.leftOperand, Number)
+        mutation = cast(Number, condition.leftOperand)
+        self.assertEqual(mutation.value, 0)
+
+    def testGenerateFaultLocus(self):
+        mutator = Mutator(self.astCritter1)
+        for i in range(0, 5):
+            faultLocus = mutator.generateFaultLocus()
+            childNode = faultLocus[0]
+            parentNode = faultLocus[1]
+            self.assertTrue(childNode in parentNode)
+
+    def testMutateInsertNumber(self):
+        pass
+
+    def createProgram(self, programString: str) -> Program:
+        parser = Parser(Lexer().tokenize(programString))
+        program = parser.parse()
+        return program

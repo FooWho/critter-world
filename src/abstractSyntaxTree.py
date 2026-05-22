@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Any, ClassVar, Iterator, TypeVar, Generator, TYPE_CHECKING
+from typing import Any, ClassVar, Iterator, TypeVar, Generator, TYPE_CHECKING, cast
 from schemas import TokenLexeme, TOKENS, Token, SET_MULOPS, SET_ADDOPS, T_NONE
 import copy
 
@@ -46,6 +46,9 @@ class ASTNode:
             elif isinstance(value, ASTNode):
                 yield value
 
+    def replaceChild(self, oldChild: ASTNode, newChild: ASTNode) -> bool:
+        return False
+
     def copyNode(self) -> ASTNode:
         return copy.deepcopy(self)
 
@@ -58,6 +61,13 @@ class Program(ASTNode):
 
     def __str__(self) -> str:
         return "\n".join(str(rule) for rule in self.rules)
+
+    def replaceChild(self, oldChild: ASTNode, newChild: ASTNode) -> bool:
+        for i in range(len(self.rules)):
+            if self.rules[i] is oldChild:
+                self.rules[i] = cast(Rule, newChild)
+                return True
+        return False
 
 
 class ExpressionNode(ASTNode):
@@ -99,6 +109,19 @@ class Rule(ASTNode):
     def __str__(self) -> str:
         result = "\n     ".join(map(str, self.commands))
         return f"{self.condition} --> \n     {result}\n     ;\n"
+
+    def replaceChild(self, oldChild: ASTNode, newChild: ASTNode) -> bool:
+        if self.condition is oldChild:
+            self.condition = newChild
+            return True
+
+        for i in range(len(self.commands)):
+            if self.commands[i] is oldChild:
+                if type(newChild) is Action and i != (len(self.commands) - 1):
+                    raise RuntimeError("Action must be final Command")
+                self.commands[i] = cast(Update | Action, newChild)
+                return True
+        return False
 
 
 class Command(ASTNode):

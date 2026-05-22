@@ -248,11 +248,21 @@ class Mutator:
                 raise RuntimeError("This should never happen.")
         self.updateInsertion(mutation, faultLocus)
 
-    def mutateReplaceNumber(self, faultLocus: tuple[Number, ASTNode]) -> None:
+    def mutateReplaceNumber(
+        self,
+        faultLocus: tuple[Number, ASTNode],
+        mutation: ExpressionNode | None = None,
+    ) -> None:
         originalNode = faultLocus[0]
         parentNode = faultLocus[1]
-        number = random.choice(self.ast.getNodesByType(Number))
-        self.updateInsertion(number, faultLocus)
+        mutation = (
+            random.choice(self.ast.getNodesByType(ExpressionNode))
+            if not mutation
+            else mutation
+        )
+        mutation = cast(ExpressionNode, mutation.copyNode())
+
+        self.updateInsertion(mutation, faultLocus)
 
     def binaryOperatorFaultInjector(
         self, faultLocus: tuple[BinaryOperator, ASTNode]

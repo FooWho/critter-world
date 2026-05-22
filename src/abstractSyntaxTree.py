@@ -66,6 +66,21 @@ class ExpressionNode(ASTNode):
 
 
 class BooleanOperator(ASTNode):
+    _children = ("leftOperand", "rightOperand")
+
+    def __init__(self) -> None:
+        # BooleanOperator is an abstraction for RelationalOperator and LogicalOperator
+        # It shouldn't get instantiated. The data fields are for code working with
+        # one of the two concrete subclasses. We know they both have a left and right operand.
+        # This is really just so Pylance doesn't complain when I want to access a left or
+        # right operand without having to cast it. I know the field is there, no matter
+        # which subclass I actually have.
+
+        if type(self) is BooleanOperator:
+            raise TypeError("BooleanOperator should not be directly instantiated.")
+        self.leftOperand = BooleanOperator()
+        self.rightOperand = BooleanOperator()
+
     def evaluate(self) -> bool:
         raise NotImplementedError()
 

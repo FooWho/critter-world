@@ -63,6 +63,19 @@ class TestMutator(unittest.TestCase):
         self.parser = Parser(tokens)
         self.astCritter4 = AbstractSyntaxTree(self.parser.parse())
 
+    def createProgram(self, programString: str) -> Program:
+        parser = Parser(Lexer().tokenize(programString))
+        program = parser.parse()
+        return program
+
+    def testGenerateFaultLocus(self):
+        mutator = Mutator(self.astCritter1)
+        for i in range(0, 5):
+            faultLocus = mutator.generateFaultLocus()
+            childNode = faultLocus[0]
+            parentNode = faultLocus[1]
+            self.assertTrue(childNode in parentNode)
+
     def testMutateTransformNumber(self):
         program = self.createProgram("1 < 3 --> wait;")
         ast = AbstractSyntaxTree(program)
@@ -96,14 +109,6 @@ class TestMutator(unittest.TestCase):
         mutation = cast(Number, condition.leftOperand)
         self.assertEqual(mutation.value, 0)
 
-    def testGenerateFaultLocus(self):
-        mutator = Mutator(self.astCritter1)
-        for i in range(0, 5):
-            faultLocus = mutator.generateFaultLocus()
-            childNode = faultLocus[0]
-            parentNode = faultLocus[1]
-            self.assertTrue(childNode in parentNode)
-
     def testMutateInsertNumber(self):
         program = self.createProgram("1 < 2 --> wait;")
         ast = AbstractSyntaxTree(program)
@@ -129,7 +134,16 @@ class TestMutator(unittest.TestCase):
         self.assertIsInstance(condition.rightOperand, BinaryOperator)
         print(f"{ast.rootNode.rules[0].condition}")
 
-    def createProgram(self, programString: str) -> Program:
-        parser = Parser(Lexer().tokenize(programString))
-        program = parser.parse()
-        return program
+    def testMutateReplaceNumber(self):
+
+        program = self.createProgram("1 + 4 < 2 * 17 mod 12 --> wait;")
+        ast = AbstractSyntaxTree(program)
+        mutator = Mutator(ast)
+        replacementNode = program.rules[0].condition.rightOperand.leftOperand
+        originalNode = program.rules[0].condition.leftOperand.rightOperand
+        parentNode = program.rules[0].condition.leftOperand
+        print(f"({originalNode},{parentNode})")
+        mutator.mutateReplaceNumber(
+            (cast(Number, originalNode), parentNode), cast(Number, replacementNode)
+        )
+        self.assertEqual("1 + 2 * 17 < 2 * 17 mod 12", str(program.rules[0].condition))

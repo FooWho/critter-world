@@ -105,7 +105,29 @@ class TestMutator(unittest.TestCase):
             self.assertTrue(childNode in parentNode)
 
     def testMutateInsertNumber(self):
-        pass
+        program = self.createProgram("1 < 2 --> wait;")
+        ast = AbstractSyntaxTree(program)
+
+        mutator = Mutator(ast)
+        condition = cast(RelationalOperator, program.rules[0].condition)
+        faultLocus = (
+            cast(Number, condition.leftOperand),
+            condition,
+        )
+        mutator.mutateInsertNumber(faultLocus, 1)
+        self.assertIsInstance(condition.leftOperand, UnaryOperator)
+
+        faultLocus = (
+            cast(Number, cast(UnaryOperator, condition.leftOperand).operand),
+            condition.leftOperand,
+        )
+        mutator.mutateInsertNumber(faultLocus, 1)
+        self.assertIsInstance(condition.leftOperand, Number)
+
+        faultLocus = (cast(Number, condition.rightOperand), condition)
+        mutator.mutateInsertNumber(faultLocus, 2)
+        self.assertIsInstance(condition.rightOperand, BinaryOperator)
+        print(f"{ast.rootNode.rules[0].condition}")
 
     def createProgram(self, programString: str) -> Program:
         parser = Parser(Lexer().tokenize(programString))

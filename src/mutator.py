@@ -173,6 +173,7 @@ class Mutator:
         numberNode = faultLocus[0]
         parentNode = faultLocus[1]
 
+        amount = self.getWeightedRandom() if not amount else amount
         if amount is None:
             amount = self.getWeightedRandom()
 
@@ -193,16 +194,19 @@ class Mutator:
         else:
             self.updateInsertion(mutation, faultLocus)
 
-    def mutateInsertNumber(self, faultLocus: tuple[Number, ASTNode]) -> None:
+    def mutateInsertNumber(
+        self, faultLocus: tuple[Number, ASTNode], insertType: int | None = None
+    ) -> None:
 
         originalNode = faultLocus[0]
         parentNode = faultLocus[1]
-        choice = random.choice([0, 1, 2])
+        choice = random.choice([1, 2, 3]) if not insertType else insertType
         match choice:
-            case 0:
-                # Insert UnaryOperator
-                mutation = UnaryOperator(TokenLexeme(TOKENS.T_MINUS, "-"), originalNode)
             case 1:
+                # Insert UnaryOperator
+                # Check double negative
+                mutation = UnaryOperator(TokenLexeme(TOKENS.T_MINUS, "-"), originalNode)
+            case 2:
                 # Insert BinaryOperator
                 choice = random.choice(
                     [TOKENS.T_MINUS, TOKENS.T_STAR, TOKENS.T_DIV, TOKENS.T_PLUS]
@@ -224,7 +228,7 @@ class Mutator:
                         operator=TokenLexeme(choice, op),
                         rightOperand=originalNode,
                     )
-            case 2:
+            case 3:
                 # Insert MemNode, DirectedSensorNode
                 choice = random.choice(
                     [TOKENS.T_MEM, TOKENS.T_AHEAD, TOKENS.T_NEARBY, TOKENS.T_RANDOM]
@@ -243,7 +247,6 @@ class Mutator:
             case _:
                 raise RuntimeError("This should never happen.")
         self.updateInsertion(mutation, faultLocus)
-        self.ast.nodeCount = countNodes(self.ast.rootNode)
 
     def mutateReplaceNumber(self, faultLocus: tuple[Number, ASTNode]) -> None:
         originalNode = faultLocus[0]
@@ -448,7 +451,35 @@ class Mutator:
                     raise RuntimeError(
                         "Child of UnaryOperator must be an ExpressionNode - updateInsertion()"
                     )
-                parentNode.operand = mutation
+                if isinstance(mutation, UnaryOperator):
+                    mutation = cast(UnaryOperator, mutation)
+                    grandparent = self.ast.getParentByNode(parentNode)
+                    match grandparent:
+                        case RelationalOperator():
+                            if grandparent.leftOperand is parentNode:
+                                grandparent.leftOperand = mutation.operand
+                            elif grandparent.rightOperand is parentNode:
+                                grandparent.rightOperand = mutation.operand
+                            else:
+                                raise RuntimeError(
+                                    f"updateInsertion() can't find parentNode in grandparent of RelationalOperator."
+                                )
+                        case BinaryOperator():
+                            raise RuntimeError(
+                                f"updateInsertion() doesn't handle grandparent of type {type(grandparent)}"
+                            )
+                        case MemNode():
+                            raise RuntimeError(
+                                f"updateInsertion() doesn't handle grandparent of type {type(grandparent)}"
+                            )
+                        case DirectedSensorNode():
+                            raise RuntimeError(
+                                f"updateInsertion() doesn't handle grandparent of type {type(grandparent)}"
+                            )
+                        case _:
+                            raise RuntimeError(
+                                f"updateInsertion() doesn't handle grandparent of type {type(grandparent)}"
+                            )
             case RelationalOperator():
                 if not isinstance(mutation, ExpressionNode):
                     raise RuntimeError(

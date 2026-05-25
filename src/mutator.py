@@ -49,6 +49,8 @@ class Mutator:
     ) -> None:
 
         self.ast = ast
+        if not self.ast.rootNode:
+            raise RuntimeError("AST was not setup in init for Mutator")
         self.mutationProbability = mutationProbability
 
     def getWeightedRandom(self):
@@ -173,14 +175,18 @@ class Mutator:
     ) -> None:
         originalNode = faultLocus[0]
         parentNode = faultLocus[1]
+        # The selected Number node will be replaced a copy of a randomly selected ExpressionNode from elsewhere in the AST.
+        # This mutator will also accept an ExpressionNode to be used for the mutation. This is primarily for use by the unit tests.
         mutation = (
             random.choice(self.ast.getNodesByType(ExpressionNode))
             if not mutation
             else mutation
         )
         mutation = cast(ExpressionNode, mutation.copyNode())
-
-        self.updateInsertion(mutation, faultLocus)
+        mutation.ast = parentNode.ast
+        # Replace the original child of the parent with the mutation.
+        parentNode.replaceChild(originalNode, mutation)
+        # self.updateInsertion(mutation, faultLocus)
 
     def mutateTransformNumber(
         self, faultLocus: tuple[Number, ASTNode], amount: int | None = None
@@ -206,9 +212,9 @@ class Mutator:
                 raise RuntimeError(
                     "Could not locate grandparent - mutateTransformNumber()"
                 )
-            self.updateInsertion(mutation, (parentNode, grandparent))
+            grandparent.replaceChild(parentNode, mutation)
         else:
-            self.updateInsertion(mutation, faultLocus)
+            parentNode.replaceChild(numberNode, mutation)
 
     def mutateInsertNumber(
         self, faultLocus: tuple[Number, ASTNode], insertType: int | None = None
@@ -262,7 +268,8 @@ class Mutator:
                         )
             case _:
                 raise RuntimeError("This should never happen.")
-        self.updateInsertion(mutation, faultLocus)
+        # self.updateInsertion(mutation, faultLocus)
+        parentNode.replaceChild(originalNode, mutation)
 
     def binaryOperatorFaultInjector(
         self, faultLocus: tuple[BinaryOperator, ASTNode]
@@ -325,6 +332,8 @@ class Mutator:
         logicalOperator.rightOperand = tmp
 
     def ruleFaultInjector(self, faultLocus: tuple[Rule, Program]) -> None:
+        if not self.ast.rootNode:
+            raise RuntimeError("AST was not setup in init for Mutator")
         originalNode = faultLocus[0]
         parentNode = faultLocus[1]
         choice = random.choice([1])
@@ -337,6 +346,8 @@ class Mutator:
                 )
 
     def mutateRemoveRuleFaultInjector(self, rule: Rule) -> None:
+        if not self.ast.rootNode:
+            raise RuntimeError("AST was not setup in init for Mutator")
         self.ast.rootNode.rules.remove(rule)
 
     def sensorFaultInjector(self, faultLocus: tuple[SensorNode, ASTNode]) -> None:
@@ -378,13 +389,16 @@ class Mutator:
         if isinstance(parentNode, Update):
             # If the parent is an Update, the replacement must be another MemNode
             mutation = random.choice(self.ast.getNodesByType(MemNode))
-            self.updateInsertion(mutation, faultLocus)
+            # self.updateInsertion(mutation, faultLocus)
         else:
             # If the parent is not an Update, the MemNode is part of an Expression and can be replaced by any ExpressionNode
             mutation = random.choice(self.ast.getNodesByType(ExpressionNode))
-            self.updateInsertion(mutation, faultLocus)
+            # self.updateInsertion(mutation, faultLocus)
+        parentNode.replaceChild(originalNode, mutation)
 
     def mutateInsertMemNode(self, faultLocus: tuple[MemNode, ExpressionNode]) -> None:
+        if not self.ast.rootNode:
+            raise RuntimeError("AST was not setup in init for Mutator")
         originalNode = faultLocus[0]
         parentNode = faultLocus[1]
 
@@ -396,7 +410,13 @@ class Mutator:
             case 1:
                 # BinaryOperator
                 choice = random.choice(
-                    [TOKENS.T_MINUS, TOKENS.T_STAR, TOKENS.T_DIV, TOKENS.T_PLUS]
+                    [
+                        TOKENS.T_MINUS,
+                        TOKENS.T_STAR,
+                        TOKENS.T_DIV,
+                        TOKENS.T_PLUS,
+                        TOKENS.T_MOD,
+                    ]
                 )
                 side = random.choice(["left", "right"])
                 op = Mutator.operatorMap.get(choice) or ""
@@ -426,8 +446,9 @@ class Mutator:
             case _:
                 raise RuntimeError("This shouldn't happen.")
 
-        self.updateInsertion(mutation, faultLocus)
-        self.ast.nodeCount = countNodes(self.ast.rootNode)
+        # self.updateInsertion(mutation, faultLocus)
+        # self.ast.nodeCount = countNodes(self.ast.rootNode)
+        parentNode.replaceChild(originalNode, mutation)
 
     def unaryOperatorFaultInjector(
         self, faultLocus: tuple[UnaryOperator, ASTNode]
@@ -442,6 +463,8 @@ class Mutator:
                 )
 
     def generateFaultLocus(self) -> tuple[ASTNode, ASTNode]:
+        if not self.ast.rootNode:
+            raise RuntimeError("AST was not setup in init for Mutator")
 
         nodes = [node for node in self.ast._walk(self.ast.rootNode)]
         nodes.remove(self.ast.rootNode)
@@ -452,92 +475,11 @@ class Mutator:
             raise RuntimeError(f"Unable to locate parent for {node}")
         return (node, parent)
 
-    def updateInsertion(self, mutation: ASTNode, locus: tuple[ASTNode, ASTNode]):
-        originalNode = locus[0]
-        parentNode = locus[1]
-        # parentNode.replaceChild(originalNode, mutation)
-
-        match parentNode:
-            case UnaryOperator():
-                if not isinstance(mutation, ExpressionNode):
-                    raise RuntimeError(
-                        "Child of UnaryOperator must be an ExpressionNode - updateInsertion()"
-                    )
-                if isinstance(mutation, UnaryOperator):
-                    mutation = cast(UnaryOperator, mutation)
-                    grandparent = self.ast.getParentByNode(parentNode)
-                    match grandparent:
-                        case RelationalOperator():
-                            if grandparent.leftOperand is parentNode:
-                                grandparent.leftOperand = mutation.operand
-                            elif grandparent.rightOperand is parentNode:
-                                grandparent.rightOperand = mutation.operand
-                            else:
-                                raise RuntimeError(
-                                    f"updateInsertion() can't find parentNode in grandparent of RelationalOperator."
-                                )
-                        case BinaryOperator():
-                            raise RuntimeError(
-                                f"updateInsertion() doesn't handle grandparent of type {type(grandparent)}"
-                            )
-                        case MemNode():
-                            raise RuntimeError(
-                                f"updateInsertion() doesn't handle grandparent of type {type(grandparent)}"
-                            )
-                        case DirectedSensorNode():
-                            raise RuntimeError(
-                                f"updateInsertion() doesn't handle grandparent of type {type(grandparent)}"
-                            )
-                        case _:
-                            raise RuntimeError(
-                                f"updateInsertion() doesn't handle grandparent of type {type(grandparent)}"
-                            )
-            case RelationalOperator():
-                if not isinstance(mutation, ExpressionNode):
-                    raise RuntimeError(
-                        "Child of RelationalOperator must be an ExpressionNode - updateInsertion()"
-                    )
-                if originalNode == parentNode.leftOperand:
-                    parentNode.leftOperand = mutation
-                elif originalNode == parentNode.rightOperand:
-                    parentNode.rightOperand = mutation
-                else:
-                    raise RuntimeError("Couldn't match the child in updateInsertion()")
-            case Update():
-                if parentNode.source is originalNode and isinstance(
-                    mutation, ExpressionNode
-                ):
-                    parentNode.source = mutation
-                elif parentNode.destination is originalNode and isinstance(
-                    mutation, MemNode
-                ):
-                    parentNode.destination = mutation
-                else:
-                    raise RuntimeError(
-                        "Source of Update must be an ExpressionNode or Destination must be a MemNode."
-                    )
-            case BinaryOperator():
-                if not isinstance(mutation, ExpressionNode):
-                    raise RuntimeError(
-                        "Operands of BinaryOperator must be ExpressionNodes"
-                    )
-                if parentNode.leftOperand == originalNode:
-                    parentNode.leftOperand = mutation
-                elif parentNode.rightOperand == originalNode:
-                    parentNode.rightOperand = mutation
-                else:
-                    raise RuntimeError("We did not match the left or right operand.")
-            case DirectedSensorNode():
-                if isinstance(mutation, ExpressionNode):
-                    parentNode.value = mutation
-                else:
-                    raise RuntimeError(
-                        "Value of DirectedSensorNode must be an ExpressionNode"
-                    )
-            case _:
-                print("IN DEFAULT")
-                print(
-                    f"We got a (mutation) {type(mutation)} (parent) {type(parentNode)}"
-                )
-
-        self.ast.nodeCount = countNodes(self.ast.rootNode)
+    # def updateInsertion(self, mutation: ASTNode, locus: tuple[ASTNode, ASTNode]):
+    #    if not self.ast.rootNode:
+    #        raise RuntimeError("AST was not setup in init for Mutator")
+    #    originalNode = locus[0]
+    #    parentNode = locus[1]
+    #    mutation.ast = parentNode.ast
+    #    parentNode.replaceChild(originalNode, mutation)
+    #    self.ast.nodeCount = countNodes(self.ast.rootNode)

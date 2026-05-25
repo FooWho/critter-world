@@ -9,9 +9,11 @@ T = TypeVar("T", bound="ASTNode")
 class AbstractSyntaxTree:
 
     def __init__(self, rootNode: Program | None = None) -> None:
-        self.rootNode = rootNode or Program()
-        self.nodeCount = countNodes(self.rootNode)
-        self.expressions: list[ExpressionNode]
+        self.rootNode = rootNode
+        if self.rootNode:
+            self.nodeCount = countNodes(self.rootNode)
+            for node in self._walk(self.rootNode):
+                node.ast = self
 
     def _walk(self, currentNode: ASTNode) -> Generator[ASTNode, None, None]:
         yield currentNode
@@ -19,24 +21,29 @@ class AbstractSyntaxTree:
             yield from self._walk(child)
 
     def getNodesByType(self, nodeType: type[T]) -> list[T]:
-        return [
-            node for node in self._walk(self.rootNode) if isinstance(node, nodeType)
-        ]
+        if self.rootNode:
+            return [
+                node for node in self._walk(self.rootNode) if isinstance(node, nodeType)
+            ]
+        return []
 
     def copyProgram(self) -> Program:
-        program = copy.deepcopy(self.rootNode)
-
+        program = copy.deepcopy(self.rootNode) if self.rootNode else Program()
         return program
 
-    def getParentByNode(self, node: ASTNode) -> ASTNode | None:
-        for parentCandidate in self._walk(self.rootNode):
-            if node in parentCandidate:
-                return parentCandidate
-        return None
+    def getParentByNode(self, node: ASTNode) -> ASTNode:
+        if self.rootNode:
+            for parentCandidate in self._walk(self.rootNode):
+                if node in parentCandidate:
+                    return parentCandidate
+        raise RuntimeError("No Parent when getParentByNode() was called!")
 
 
 class ASTNode:
     _children: ClassVar[tuple[str, ...]] = ()
+
+    def __init__(self) -> None:
+        self.ast: AbstractSyntaxTree = AbstractSyntaxTree()
 
     def __iter__(self) -> Iterator[ASTNode]:
         for fieldName in self._children:
@@ -46,8 +53,8 @@ class ASTNode:
             elif isinstance(value, ASTNode):
                 yield value
 
-    def replaceChild(self, oldChild: ASTNode, newChild: ASTNode) -> bool:
-        return False
+    def replaceChild(self, oldChild: ASTNode, newChild: ASTNode) -> None:
+        raise NotImplementedError("replaceChild() not implemented for ASTNode.")
 
     def copyNode(self) -> ASTNode:
         return copy.deepcopy(self)
@@ -56,18 +63,24 @@ class ASTNode:
 class Program(ASTNode):
     _children = ("rules",)
 
-    def __init__(self, rules: list[Rule] | None = None) -> None:
+    def __init__(
+        self,
+        rules: list[Rule] | None = None,
+    ) -> None:
+        super().__init__()
         self.rules = rules or []
 
     def __str__(self) -> str:
         return "\n".join(str(rule) for rule in self.rules)
 
-    def replaceChild(self, oldChild: ASTNode, newChild: ASTNode) -> bool:
-        for i in range(len(self.rules)):
-            if self.rules[i] is oldChild:
+    def replaceChild(self, oldChild: ASTNode, newChild: ASTNode) -> None:
+        for i, cmd in enumerate(self.rules):
+            if cmd is oldChild:
                 self.rules[i] = cast(Rule, newChild)
-                return True
-        return False
+                newChild.ast = self.ast
+                self.ast.nodeCount += countNodes(newChild) - countNodes(oldChild)
+                return
+        raise RuntimeError(f"Unable to replace {oldChild} with {newChild} for {self}.")
 
 
 class ExpressionNode(ASTNode):
@@ -88,22 +101,28 @@ class BooleanOperator(ASTNode):
 
         if type(self) is BooleanOperator:
             raise TypeError("BooleanOperator should not be directly instantiated.")
-        self.leftOperand = BooleanOperator()
-        self.rightOperand = BooleanOperator()
+        super().__init__()
+        if type(self) is BooleanOperator:
+            # This won't execute, but it makes Pylance happy when referencing left and right operands for RelationalOperator and LogicalOperator generically.
+            self.leftOperand = BooleanOperator()
+            self.rightOperand = BooleanOperator()
 
     def evaluate(self) -> bool:
         raise NotImplementedError()
 
-    def replaceChild(self, oldChild: ASTNode, newChild: ASTNode) -> bool:
+    def replaceChild(self, oldChild: ASTNode, newChild: ASTNode) -> None:
         oldChild = cast(BooleanOperator, oldChild)
         newChild = cast(BooleanOperator, newChild)
         if self.leftOperand is oldChild:
             self.leftOperand = newChild
-            return True
-        if self.rightOperand is oldChild:
+        elif self.rightOperand is oldChild:
             self.rightOperand = newChild
-            return True
-        return False
+        else:
+            raise RuntimeError(
+                f"Unable to replace {oldChild} with {newChild} for {self}."
+            )
+        newChild.ast = self.ast
+        self.ast.nodeCount += countNodes(newChild) - countNodes(oldChild)
 
 
 class Rule(ASTNode):
@@ -114,6 +133,7 @@ class Rule(ASTNode):
         condition: BooleanOperator | None = None,
         commands: list[Command] | None = None,
     ) -> None:
+        super().__init__()
         self.condition = condition or BooleanOperator()
         self.commands = commands or []
 
@@ -121,18 +141,28 @@ class Rule(ASTNode):
         result = "\n     ".join(map(str, self.commands))
         return f"{self.condition} --> \n     {result}\n     ;\n"
 
-    def replaceChild(self, oldChild: ASTNode, newChild: ASTNode) -> bool:
+    def replaceChild(self, oldChild: ASTNode, newChild: ASTNode) -> None:
         if self.condition is oldChild:
             self.condition = newChild
-            return True
-
-        for i in range(len(self.commands)):
-            if self.commands[i] is oldChild:
-                if type(newChild) is Action and i != (len(self.commands) - 1):
-                    raise RuntimeError("Action must be final Command")
-                self.commands[i] = cast(Update | Action, newChild)
-                return True
-        return False
+        elif isinstance(newChild, Command):
+            replaced = False
+            for i, cmd in enumerate(self.commands):
+                if cmd is oldChild:
+                    if type(newChild) is Action and oldChild is not self.commands[-1]:
+                        raise RuntimeError("Action must be final Command")
+                    self.commands[i] = newChild
+                    replaced = True
+                    break
+            if not replaced:
+                raise RuntimeError(
+                    f"Unable to replace {oldChild} with {newChild} for {self}."
+                )
+        else:
+            raise RuntimeError(
+                f"Unable to replace {oldChild} with {newChild} for {self}."
+            )
+        newChild.ast = self.ast
+        self.ast.nodeCount += countNodes(newChild) - countNodes(oldChild)
 
 
 class Command(ASTNode):
@@ -144,28 +174,38 @@ class Update(Command):
     _children = ("destination", "source")
 
     def __init__(
-        self, destination: MemNode | None = None, source: ExpressionNode | None = None
+        self,
+        destination: MemNode | None = None,
+        source: ExpressionNode | None = None,
     ) -> None:
+        super().__init__()
         self.destination = destination or MemNode()
         self.source = source or ExpressionNode()
 
     def __str__(self) -> str:
         return f"{self.destination} := {self.source}"
 
-    def replaceChild(self, oldChild: ASTNode, newChild: ASTNode) -> bool:
+    def replaceChild(self, oldChild: ASTNode, newChild: ASTNode) -> None:
         if self.destination is oldChild:
             self.destination = newChild
-            return True
-        if self.source is oldChild:
+        elif self.source is oldChild:
             self.source = newChild
-            return True
-        return False
+        else:
+            raise RuntimeError(
+                f"Unable to replace {oldChild} with {newChild} for {self}."
+            )
+        newChild.ast = self.ast
+        self.ast.nodeCount += countNodes(newChild) - countNodes(oldChild)
 
 
 class Action(Command):
     _children = ()
 
-    def __init__(self, actionType: Token | None = None) -> None:
+    def __init__(
+        self,
+        actionType: Token | None = None,
+    ) -> None:
+        super().__init__()
         if actionType:
             self.actionType = TokenLexeme(actionType.tokenType, actionType.lexeme)
         else:
@@ -179,7 +219,9 @@ class ServeAction(Action):
     _children = "value"
 
     def __init__(
-        self, actionType: Token | None = None, value: ExpressionNode | None = None
+        self,
+        actionType: Token | None = None,
+        value: ExpressionNode | None = None,
     ) -> None:
         super().__init__(actionType)
         if value:
@@ -190,11 +232,15 @@ class ServeAction(Action):
     def __str__(self) -> str:
         return f"serve[{self.value}]"
 
-    def replaceChild(self, oldChild: ASTNode, newChild: ASTNode) -> bool:
+    def replaceChild(self, oldChild: ASTNode, newChild: ASTNode) -> None:
         if self.value is oldChild:
             self.value = newChild
-            return True
-        return False
+        else:
+            raise RuntimeError(
+                f"Unable to replace {oldChild} with {newChild} for {self}."
+            )
+        newChild.ast = self.ast
+        self.ast.nodeCount += countNodes(newChild) - countNodes(oldChild)
 
 
 class LogicalOperator(BooleanOperator):
@@ -206,7 +252,7 @@ class LogicalOperator(BooleanOperator):
         operator: TokenLexeme = T_NONE,
         rightOperand: BooleanOperator | None = None,
     ) -> None:
-
+        super().__init__()
         self.leftOperand = leftOperand or RelationalOperator()
         self.operator = operator
         self.rightOperand = rightOperand or RelationalOperator()
@@ -247,18 +293,6 @@ class LogicalOperator(BooleanOperator):
             return True
         return False
 
-    def replaceChild(self, oldChild: ASTNode, newChild: ASTNode) -> bool:
-        oldChild = cast(BooleanOperator, oldChild)
-        newChild = cast(BooleanOperator, newChild)
-
-        if self.leftOperand is oldChild:
-            self.leftOperand = newChild
-            return True
-        if self.rightOperand is oldChild:
-            self.rightOperand = newChild
-            return True
-        return False
-
 
 class RelationalOperator(BooleanOperator):
     _children = ("leftOperand", "rightOperand")
@@ -269,6 +303,7 @@ class RelationalOperator(BooleanOperator):
         operator: TokenLexeme = T_NONE,
         rightOperand: ExpressionNode | None = None,
     ) -> None:
+        super().__init__()
         self.leftOperand = leftOperand or Number()
         self.operator = operator
         self.rightOperand = rightOperand or Number()
@@ -301,18 +336,6 @@ class RelationalOperator(BooleanOperator):
                     f'Expected <RelationalOperator> in evaluation. Saw: "{self.operator.lexeme}"'
                 )
 
-    def replaceChild(self, oldChild: ASTNode, newChild: ASTNode) -> bool:
-        oldChild = cast(ExpressionNode, oldChild)
-        newChild = cast(ExpressionNode, newChild)
-
-        if self.leftOperand is oldChild:
-            self.leftOperand = newChild
-            return True
-        if self.rightOperand is oldChild:
-            self.rightOperand = newChild
-            return True
-        return False
-
 
 class BinaryOperator(ExpressionNode):
     _children = ("leftOperand", "rightOperand")
@@ -323,6 +346,7 @@ class BinaryOperator(ExpressionNode):
         operator: TokenLexeme = T_NONE,
         rightOperand: ExpressionNode | None = None,
     ) -> None:
+        super().__init__()
         self.leftOperand = leftOperand or Number()
         self.operator = operator
         self.rightOperand = rightOperand or Number()
@@ -376,25 +400,31 @@ class BinaryOperator(ExpressionNode):
             return True
         return False
 
-    def replaceChild(self, oldChild: ASTNode, newChild: ASTNode) -> bool:
+    def replaceChild(self, oldChild: ASTNode, newChild: ASTNode) -> None:
         oldChild = cast(ExpressionNode, oldChild)
         newChild = cast(ExpressionNode, newChild)
 
         if self.leftOperand is oldChild:
             self.leftOperand = newChild
-            return True
-        if self.rightOperand is oldChild:
+        elif self.rightOperand is oldChild:
             self.rightOperand = newChild
-            return True
-        return False
+        else:
+            raise RuntimeError(
+                f"Unable to replace {oldChild} with {newChild} for {self}."
+            )
+        newChild.ast = self.ast
+        self.ast.nodeCount += countNodes(newChild) - countNodes(oldChild)
 
 
 class UnaryOperator(ExpressionNode):
     _children = ("operand",)
 
     def __init__(
-        self, operator: TokenLexeme = T_NONE, operand: ExpressionNode | None = None
+        self,
+        operator: TokenLexeme = T_NONE,
+        operand: ExpressionNode | None = None,
     ) -> None:
+        super().__init__()
         self.operator = operator
         self.operand = operand or Number()
 
@@ -410,20 +440,35 @@ class UnaryOperator(ExpressionNode):
                     f'Expected <UnaryOperator> in evaluation. Saw: "{self.operator.lexeme}"'
                 )
 
-    def replaceChild(self, oldChild: ASTNode, newChild: ASTNode) -> bool:
+    def replaceChild(self, oldChild: ASTNode, newChild: ASTNode) -> None:
         oldChild = cast(ExpressionNode, oldChild)
         newChild = cast(ExpressionNode, newChild)
 
-        if self.operand is oldChild:
+        if isinstance(newChild, UnaryOperator):
+            grandparent = self.ast.getParentByNode(self)
+            if not grandparent:
+                raise RuntimeError(
+                    f"Unable to replace {oldChild} with {newChild} for {self}."
+                )
+            return grandparent.replaceChild(self, newChild.operand)
+        elif self.operand is oldChild:
             self.operand = newChild
-            return True
-        return False
+        else:
+            raise RuntimeError(
+                f"Unable to replace {oldChild} with {newChild} for {self}."
+            )
+        newChild.ast = self.ast
+        self.ast.nodeCount += countNodes(newChild) - countNodes(oldChild)
 
 
 class Number(ExpressionNode):
     _children = ()
 
-    def __new__(cls, number: Token | None = None, value: int | None = None):
+    def __new__(
+        cls,
+        number: Token | None = None,
+        value: int | None = None,
+    ):
         if number and value is not None:
             raise ValueError(
                 "Number can be created from a <Token> or a <Value>, not both."
@@ -440,7 +485,12 @@ class Number(ExpressionNode):
             return UnaryOperator(TokenLexeme(TOKENS.T_MINUS, "-"), positiveNumber)
         return super().__new__(cls)
 
-    def __init__(self, number: Token | None = None, value: int | None = None) -> None:
+    def __init__(
+        self,
+        number: Token | None = None,
+        value: int | None = None,
+    ) -> None:
+        super().__init__()
         if number and value is not None:
             raise ValueError(
                 "Number can be created from a <Token> or a <Value>, not both."
@@ -499,7 +549,11 @@ class Number(ExpressionNode):
 class MemNode(ExpressionNode):
     _children = ("value",)
 
-    def __init__(self, value: ExpressionNode | None = None) -> None:
+    def __init__(
+        self,
+        value: ExpressionNode | None = None,
+    ) -> None:
+        super().__init__()
         self.value = value or Number()
 
     def __str__(self) -> str:
@@ -563,20 +617,28 @@ class MemNode(ExpressionNode):
             case _:
                 return f"mem[{value}]"
 
-    def replaceChild(self, oldChild: ASTNode, newChild: ASTNode) -> bool:
+    def replaceChild(self, oldChild: ASTNode, newChild: ASTNode) -> None:
         oldChild = cast(ExpressionNode, oldChild)
         newChild = cast(ExpressionNode, newChild)
 
         if self.value is oldChild:
             self.value = newChild
-            return True
-        return False
+        else:
+            raise RuntimeError(
+                f"Unable to replace {oldChild} with {newChild} for {self}."
+            )
+        newChild.ast = self.ast
+        self.ast.nodeCount += countNodes(newChild) - countNodes(oldChild)
 
 
 class SensorNode(ExpressionNode):
     _children = ()
 
-    def __init__(self, sensorType: Token | None = None) -> None:
+    def __init__(
+        self,
+        sensorType: Token | None = None,
+    ) -> None:
+        super().__init__()
         if sensorType:
             self.sensorType = TokenLexeme(sensorType.tokenType, sensorType.lexeme)
         else:
@@ -593,9 +655,13 @@ class DirectedSensorNode(SensorNode):
     _children = ("value",)
 
     def __init__(
-        self, sensorType: Token | None = None, value: ExpressionNode | None = None
+        self,
+        sensorType: Token | None = None,
+        value: ExpressionNode | None = None,
     ) -> None:
-        super().__init__(sensorType)
+        super().__init__(
+            sensorType,
+        )
 
         self.value: ExpressionNode = value or Number()
 
@@ -605,14 +671,18 @@ class DirectedSensorNode(SensorNode):
     def evaluate(self) -> int:
         return 0
 
-    def replaceChild(self, oldChild: ASTNode, newChild: ASTNode) -> bool:
+    def replaceChild(self, oldChild: ASTNode, newChild: ASTNode) -> None:
         oldChild = cast(ExpressionNode, oldChild)
         newChild = cast(ExpressionNode, newChild)
 
         if self.value is oldChild:
             self.value = newChild
-            return True
-        return False
+        else:
+            raise RuntimeError(
+                f"Unable to replace {oldChild} with {newChild} for {self}."
+            )
+        newChild.ast = self.ast
+        self.ast.nodeCount += countNodes(newChild) - countNodes(oldChild)
 
 
 class SmellNode(SensorNode):

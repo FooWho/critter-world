@@ -160,25 +160,51 @@ class TestMutator(unittest.TestCase):
         ast = AbstractSyntaxTree(program)
 
         mutator = Mutator(ast)
+
+        # Setup faultLocus. originalNode is "1" and the parentNode is "1 < 2".
         condition = cast(RelationalOperator, program.rules[0].condition)
         faultLocus = (
             cast(Number, condition.leftOperand),
             condition,
         )
-        mutator.mutateInsertNumber(faultLocus, 1)
-        self.assertIsInstance(condition.leftOperand, UnaryOperator)
+        self.assertIsInstance(condition.leftOperand, Number)
 
+        # Insert a unary operator as the parent of "1" in the expression "1 < 2".
+        # After this mutation, the expression will be "-1 < 2" or, RelationalOperator(UnaryOperator(1),2)
+        mutator.mutateInsertNumber(faultLocus, 1)
+        # Left operand of the condition is now a UnaryOperand instead of a Number
+        self.assertIsInstance(condition.leftOperand, UnaryOperator)
+        self.assertEqual(str(condition), "-1 < 2")
+
+        # Set new faultLocus. We are now going to insert a UnaryOperator as the parent
+        # of the -1 in the expression "-1 < 2". This would create a double negative.
+        # The resulting expression will actually be "1 < 2"
         faultLocus = (
             cast(Number, cast(UnaryOperator, condition.leftOperand).operand),
             condition.leftOperand,
         )
         mutator.mutateInsertNumber(faultLocus, 1)
         self.assertIsInstance(condition.leftOperand, Number)
+        self.assertEqual(str(condition), "1 < 2")
 
+        # Set a new faultLocus. Insert a BinaryOperator as as the parent of the "2" in "1 < 2"
         faultLocus = (cast(Number, condition.rightOperand), condition)
         mutator.mutateInsertNumber(faultLocus, 2)
         self.assertIsInstance(condition.rightOperand, BinaryOperator)
-        print(f"{ast.rootNode.rules[0].condition}")
+        binOp = cast(BinaryOperator, condition.rightOperand)
+        self.assertTrue(
+            binOp.operator.lexeme == "+"
+            or binOp.operator.lexeme == "-"
+            or binOp.operator.lexeme == "*"
+            or binOp.operator.lexeme == "/"
+            or binOp.operator.lexeme == "mod"
+        )
+        self.assertTrue(
+            binOp.leftOperand.evaluate() == 1 or binOp.leftOperand.evaluate() == 2
+        )
+        self.assertTrue(
+            binOp.rightOperand.evaluate() == 1 or binOp.rightOperand.evaluate() == 2
+        )
 
     def testMutateReplaceNumber(self):
 
@@ -202,3 +228,57 @@ class TestMutator(unittest.TestCase):
             cast(ExpressionNode, replacementNode),
         )
         self.assertEqual("1 + 2 * 17 < 2 * 17 mod 12", str(program.rules[0].condition))
+
+    def testProgramReplaceChild(self):
+        program = self.createProgram("1 = 1 --> wait;")
+        ast = AbstractSyntaxTree(program)
+
+        initialNodeCount = ast.nodeCount
+        oldRule = program.rules[0]
+
+        newCondition = RelationalOperator(
+            BinaryOperator(
+                Number(value=1), TokenLexeme(TOKENS.T_PLUS, "+"), Number(value=2)
+            ),
+            TokenLexeme(TOKENS.T_EQU, "="),
+            Number(value=3),
+        )
+        newRule = Rule(newCondition, [Action(Token(TOKENS.T_WAIT, "wait", 0, 0))])
+
+        program.replaceChild(oldRule, newRule)
+
+        self.assertIs(program.rules[0], newRule)
+        self.assertIsNot(program.rules[0], oldRule)
+        # oldRule had 5 nodes, newRule has 7, diff is +2
+        self.assertEqual(ast.nodeCount, initialNodeCount + 2)
+
+    def testRuleReplaceChild(self):
+        program = self.createProgram("1 = 1 --> wait;")
+        ast = AbstractSyntaxTree(program)
+
+        rule = program.rules[0]
+        oldCommand = rule.commands[0]
+
+        newCommand = Action(Token(TOKENS.T_EAT, "eat", 0, 0))
+
+        rule.replaceChild(oldCommand, newCommand)
+        self.assertIs(rule.commands[0], newCommand)
+        self.assertEqual(str(newCommand), "eat")
+
+        missingCommand = Action(Token(TOKENS.T_BUD, "bud", 0, 0))
+        with self.assertRaises(RuntimeError):
+            rule.replaceChild(missingCommand, newCommand)
+
+    def testUnaryReplaceChildDoubleNegative(self):
+        # Test double negative collapsing logic in UnaryOperator
+        program = self.createProgram("-1 = -1 --> wait;")
+        ast = AbstractSyntaxTree(program)
+        condition = cast(RelationalOperator, program.rules[0].condition)
+        unaryOp = cast(UnaryOperator, condition.leftOperand)
+
+        newChild = UnaryOperator(TokenLexeme(TOKENS.T_MINUS, "-"), Number(value=5))
+        unaryOp.replaceChild(unaryOp.operand, newChild)
+
+        # The double negative should collapse and set the grandparent's child to the operand
+        self.assertIsInstance(condition.leftOperand, Number)
+        self.assertEqual(condition.leftOperand.evaluate(), 5)

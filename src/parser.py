@@ -209,6 +209,7 @@ class Parser:
                     # Collapse double negative
                     return unOp.operand.operand
                 if isinstance(unOp.operand, Number) and unOp.operand.value == 0:
+                    # Collapse negative 0
                     return unOp.operand
                 return unOp
             case TOKENS.T_L_PAREN:

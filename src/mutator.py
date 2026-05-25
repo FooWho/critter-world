@@ -166,6 +166,22 @@ class Mutator:
                     f"Choice {choice} for numberFaultInjector() not implemented."
                 )
 
+    def mutateReplaceNumber(
+        self,
+        faultLocus: tuple[Number, ASTNode],
+        mutation: ExpressionNode | None = None,
+    ) -> None:
+        originalNode = faultLocus[0]
+        parentNode = faultLocus[1]
+        mutation = (
+            random.choice(self.ast.getNodesByType(ExpressionNode))
+            if not mutation
+            else mutation
+        )
+        mutation = cast(ExpressionNode, mutation.copyNode())
+
+        self.updateInsertion(mutation, faultLocus)
+
     def mutateTransformNumber(
         self, faultLocus: tuple[Number, ASTNode], amount: int | None = None
     ) -> None:
@@ -246,22 +262,6 @@ class Mutator:
                         )
             case _:
                 raise RuntimeError("This should never happen.")
-        self.updateInsertion(mutation, faultLocus)
-
-    def mutateReplaceNumber(
-        self,
-        faultLocus: tuple[Number, ASTNode],
-        mutation: ExpressionNode | None = None,
-    ) -> None:
-        originalNode = faultLocus[0]
-        parentNode = faultLocus[1]
-        mutation = (
-            random.choice(self.ast.getNodesByType(ExpressionNode))
-            if not mutation
-            else mutation
-        )
-        mutation = cast(ExpressionNode, mutation.copyNode())
-
         self.updateInsertion(mutation, faultLocus)
 
     def binaryOperatorFaultInjector(
@@ -455,6 +455,8 @@ class Mutator:
     def updateInsertion(self, mutation: ASTNode, locus: tuple[ASTNode, ASTNode]):
         originalNode = locus[0]
         parentNode = locus[1]
+        # parentNode.replaceChild(originalNode, mutation)
+
         match parentNode:
             case UnaryOperator():
                 if not isinstance(mutation, ExpressionNode):
@@ -537,4 +539,5 @@ class Mutator:
                 print(
                     f"We got a (mutation) {type(mutation)} (parent) {type(parentNode)}"
                 )
+
         self.ast.nodeCount = countNodes(self.ast.rootNode)

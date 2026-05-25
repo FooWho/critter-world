@@ -26,6 +26,11 @@ from mutator import Mutator
 
 
 def main():
+    ast = AbstractSyntaxTree(
+        Parser(Lexer().tokenize("nearby[3] = 1 --> wait;")).parse()
+    )
+    print(ast.nodeCount)
+
     lexer = Lexer()
     parser = Parser(lexer.tokenize("--(--(---0)) = 5 --> wait;"))
     program = parser.parse()

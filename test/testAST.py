@@ -52,6 +52,15 @@ class TestAST(unittest.TestCase):
         self.parser = Parser(tokens)
         self.astCritter3 = AbstractSyntaxTree(self.parser.parse())
 
+        with open("test/critter4.crtr", "r", encoding="utf-8") as file:
+            lines = file.readlines()
+        lineContent = lines[8:]
+        content = "".join(lineContent)
+        tokens = self.lexer.tokenize(content)
+        self.parser = Parser(tokens)
+        self.astCritter4 = AbstractSyntaxTree(self.parser.parse())
+        print("ok")
+
     def testNumber(self):
         number = Number(Token(TOKENS.T_NUMBER, "5", 0, 0))
         self.assertIsInstance(number, Number)

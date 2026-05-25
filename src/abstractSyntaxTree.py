@@ -94,6 +94,17 @@ class BooleanOperator(ASTNode):
     def evaluate(self) -> bool:
         raise NotImplementedError()
 
+    def replaceChild(self, oldChild: ASTNode, newChild: ASTNode) -> bool:
+        oldChild = cast(BooleanOperator, oldChild)
+        newChild = cast(BooleanOperator, newChild)
+        if self.leftOperand is oldChild:
+            self.leftOperand = newChild
+            return True
+        if self.rightOperand is oldChild:
+            self.rightOperand = newChild
+            return True
+        return False
+
 
 class Rule(ASTNode):
     _children = ("condition", "commands")
@@ -141,6 +152,15 @@ class Update(Command):
     def __str__(self) -> str:
         return f"{self.destination} := {self.source}"
 
+    def replaceChild(self, oldChild: ASTNode, newChild: ASTNode) -> bool:
+        if self.destination is oldChild:
+            self.destination = newChild
+            return True
+        if self.source is oldChild:
+            self.source = newChild
+            return True
+        return False
+
 
 class Action(Command):
     _children = ()
@@ -156,7 +176,7 @@ class Action(Command):
 
 
 class ServeAction(Action):
-    _children = ()
+    _children = "value"
 
     def __init__(
         self, actionType: Token | None = None, value: ExpressionNode | None = None
@@ -169,6 +189,12 @@ class ServeAction(Action):
 
     def __str__(self) -> str:
         return f"serve[{self.value}]"
+
+    def replaceChild(self, oldChild: ASTNode, newChild: ASTNode) -> bool:
+        if self.value is oldChild:
+            self.value = newChild
+            return True
+        return False
 
 
 class LogicalOperator(BooleanOperator):
@@ -221,6 +247,18 @@ class LogicalOperator(BooleanOperator):
             return True
         return False
 
+    def replaceChild(self, oldChild: ASTNode, newChild: ASTNode) -> bool:
+        oldChild = cast(BooleanOperator, oldChild)
+        newChild = cast(BooleanOperator, newChild)
+
+        if self.leftOperand is oldChild:
+            self.leftOperand = newChild
+            return True
+        if self.rightOperand is oldChild:
+            self.rightOperand = newChild
+            return True
+        return False
+
 
 class RelationalOperator(BooleanOperator):
     _children = ("leftOperand", "rightOperand")
@@ -262,6 +300,18 @@ class RelationalOperator(BooleanOperator):
                 raise ValueError(
                     f'Expected <RelationalOperator> in evaluation. Saw: "{self.operator.lexeme}"'
                 )
+
+    def replaceChild(self, oldChild: ASTNode, newChild: ASTNode) -> bool:
+        oldChild = cast(ExpressionNode, oldChild)
+        newChild = cast(ExpressionNode, newChild)
+
+        if self.leftOperand is oldChild:
+            self.leftOperand = newChild
+            return True
+        if self.rightOperand is oldChild:
+            self.rightOperand = newChild
+            return True
+        return False
 
 
 class BinaryOperator(ExpressionNode):
@@ -326,6 +376,18 @@ class BinaryOperator(ExpressionNode):
             return True
         return False
 
+    def replaceChild(self, oldChild: ASTNode, newChild: ASTNode) -> bool:
+        oldChild = cast(ExpressionNode, oldChild)
+        newChild = cast(ExpressionNode, newChild)
+
+        if self.leftOperand is oldChild:
+            self.leftOperand = newChild
+            return True
+        if self.rightOperand is oldChild:
+            self.rightOperand = newChild
+            return True
+        return False
+
 
 class UnaryOperator(ExpressionNode):
     _children = ("operand",)
@@ -347,6 +409,15 @@ class UnaryOperator(ExpressionNode):
                 raise ValueError(
                     f'Expected <UnaryOperator> in evaluation. Saw: "{self.operator.lexeme}"'
                 )
+
+    def replaceChild(self, oldChild: ASTNode, newChild: ASTNode) -> bool:
+        oldChild = cast(ExpressionNode, oldChild)
+        newChild = cast(ExpressionNode, newChild)
+
+        if self.operand is oldChild:
+            self.operand = newChild
+            return True
+        return False
 
 
 class Number(ExpressionNode):
@@ -492,6 +563,15 @@ class MemNode(ExpressionNode):
             case _:
                 return f"mem[{value}]"
 
+    def replaceChild(self, oldChild: ASTNode, newChild: ASTNode) -> bool:
+        oldChild = cast(ExpressionNode, oldChild)
+        newChild = cast(ExpressionNode, newChild)
+
+        if self.value is oldChild:
+            self.value = newChild
+            return True
+        return False
+
 
 class SensorNode(ExpressionNode):
     _children = ()
@@ -524,6 +604,15 @@ class DirectedSensorNode(SensorNode):
 
     def evaluate(self) -> int:
         return 0
+
+    def replaceChild(self, oldChild: ASTNode, newChild: ASTNode) -> bool:
+        oldChild = cast(ExpressionNode, oldChild)
+        newChild = cast(ExpressionNode, newChild)
+
+        if self.value is oldChild:
+            self.value = newChild
+            return True
+        return False
 
 
 class SmellNode(SensorNode):

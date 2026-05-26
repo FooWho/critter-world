@@ -11,6 +11,7 @@ from abstractSyntaxTree import (
     Number,
     RelationalOperator,
     BooleanOperator,
+    ExpressionNode,
     LogicalOperator,
     BinaryOperator,
     UnaryOperator,
@@ -211,9 +212,11 @@ class TestParser(unittest.TestCase):
         update = rule.commands[0]
         self.assertIsInstance(update, Update)
         update = cast(Update, update)
+        update.source = cast(ExpressionNode, update.source)
         self.assertEqual(update.source.evaluate(), 17)
         memNode = update.destination
         self.assertIsInstance(memNode, MemNode)
+        memNode = cast(MemNode, memNode)
         self.assertEqual(memNode.value.evaluate(), 6)
         prettyPrint = "POSTURE != 17 --> \n     POSTURE := 17\n     ;\n"
         self.assertEqual(prettyPrint, str(rule))

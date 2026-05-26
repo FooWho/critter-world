@@ -53,6 +53,17 @@ class ASTNode:
             elif isinstance(value, ASTNode):
                 yield value
 
+    """
+    replaceChild() is responsible for updating the nodeCount in the AST and for setting the AST of the 
+    newly created child correctly! replaceChild() will raise NotImplimentedError if it is somehow
+    being called on a concrete instance of one of the abstract node types. For example, there should not
+    be any instances of <ExpressionNode>. If replaceChild is called on a node that is actually of type
+    ExpressionNode (shouldn't happen) this will raise the NotImplementedError. It will raise RuntimeError
+    if for some reason the correct nodes cannot be located for replacement. If either of these occurs,
+    something is broken somewhere else. The parser should not be capable of generating a malformed AST.
+    Either there is bug in the mutator, or we are in a unittest and screwed up creating test data.
+    """
+
     def replaceChild(self, oldChild: ASTNode, newChild: ASTNode) -> None:
         raise NotImplementedError("replaceChild() not implemented for ASTNode.")
 
@@ -444,14 +455,7 @@ class UnaryOperator(ExpressionNode):
         oldChild = cast(ExpressionNode, oldChild)
         newChild = cast(ExpressionNode, newChild)
 
-        if isinstance(newChild, UnaryOperator):
-            grandparent = self.ast.getParentByNode(self)
-            if not grandparent:
-                raise RuntimeError(
-                    f"Unable to replace {oldChild} with {newChild} for {self}."
-                )
-            return grandparent.replaceChild(self, newChild.operand)
-        elif self.operand is oldChild:
+        if self.operand is oldChild:
             self.operand = newChild
         else:
             raise RuntimeError(
@@ -690,9 +694,7 @@ class SmellNode(SensorNode):
 
 
 def countNodes(node: ASTNode):
-    nodes = 0
-    if not isinstance(node, Program):
-        nodes = 1  # Don't count the program itself, it is passthrough.
+    nodes = 1
     for child in node:
         nodes += countNodes(child)
     return nodes

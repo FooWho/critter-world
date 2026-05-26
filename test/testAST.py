@@ -59,7 +59,6 @@ class TestAST(unittest.TestCase):
         tokens = self.lexer.tokenize(content)
         self.parser = Parser(tokens)
         self.astCritter4 = AbstractSyntaxTree(self.parser.parse())
-        print("ok")
 
     def testNumber(self):
         number = Number(Token(TOKENS.T_NUMBER, "5", 0, 0))
@@ -140,9 +139,9 @@ class TestAST(unittest.TestCase):
         self.assertEqual(str(serve), "serve[10]")
 
     def testNodeCount(self):
-        self.assertEqual(self.astCritter1.nodeCount, 154)
-        self.assertEqual(self.astCritter2.nodeCount, 154)
-        self.assertEqual(self.astCritter3.nodeCount, 9)
+        self.assertEqual(self.astCritter1.nodeCount, 155)
+        self.assertEqual(self.astCritter2.nodeCount, 155)
+        self.assertEqual(self.astCritter3.nodeCount, 10)
 
     def testGetExpressions(self):
         expressions = self.astCritter1.getNodesByType(ExpressionNode)

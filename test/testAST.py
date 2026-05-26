@@ -140,16 +140,16 @@ class TestAST(unittest.TestCase):
         self.assertEqual(str(serve), "serve[10]")
 
     def testNodeCount(self):
-        self.assertEqual(self.astCritter1.nodeCount, 150)
-        self.assertEqual(self.astCritter2.nodeCount, 150)
+        self.assertEqual(self.astCritter1.nodeCount, 154)
+        self.assertEqual(self.astCritter2.nodeCount, 154)
         self.assertEqual(self.astCritter3.nodeCount, 9)
 
     def testGetExpressions(self):
         expressions = self.astCritter1.getNodesByType(ExpressionNode)
-        self.assertEqual(len(expressions), 89)
+        self.assertEqual(len(expressions), 93)
 
         expressions = self.astCritter2.getNodesByType(ExpressionNode)
-        self.assertEqual(len(expressions), 89)
+        self.assertEqual(len(expressions), 93)
 
         expressions = self.astCritter3.getNodesByType(ExpressionNode)
         self.assertEqual(len(expressions), 6)

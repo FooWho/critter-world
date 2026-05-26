@@ -34,7 +34,7 @@ class AbstractSyntaxTree:
     def getParentByNode(self, node: ASTNode) -> ASTNode:
         if self.rootNode:
             for parentCandidate in self._walk(self.rootNode):
-                if node in parentCandidate:
+                if any(child is node for child in parentCandidate):
                     return parentCandidate
         raise RuntimeError("No Parent when getParentByNode() was called!")
 
@@ -134,7 +134,7 @@ class Rule(ASTNode):
         commands: list[Command] | None = None,
     ) -> None:
         super().__init__()
-        self.condition = condition or BooleanOperator()
+        self.condition = condition or RelationalOperator()
         self.commands = commands or []
 
     def __str__(self) -> str:
@@ -180,7 +180,7 @@ class Update(Command):
     ) -> None:
         super().__init__()
         self.destination = destination or MemNode()
-        self.source = source or ExpressionNode()
+        self.source = source or Number()
 
     def __str__(self) -> str:
         return f"{self.destination} := {self.source}"
@@ -216,7 +216,7 @@ class Action(Command):
 
 
 class ServeAction(Action):
-    _children = "value"
+    _children = ("value",)
 
     def __init__(
         self,

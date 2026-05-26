@@ -389,11 +389,11 @@ class Mutator:
         if isinstance(parentNode, Update):
             # If the parent is an Update, the replacement must be another MemNode
             mutation = random.choice(self.ast.getNodesByType(MemNode))
-            # self.updateInsertion(mutation, faultLocus)
+            mutation = cast(MemNode, mutation.copyNode())
         else:
             # If the parent is not an Update, the MemNode is part of an Expression and can be replaced by any ExpressionNode
             mutation = random.choice(self.ast.getNodesByType(ExpressionNode))
-            # self.updateInsertion(mutation, faultLocus)
+            mutation = cast(ExpressionNode, mutation.copyNode())
         parentNode.replaceChild(originalNode, mutation)
 
     def mutateInsertMemNode(self, faultLocus: tuple[MemNode, ExpressionNode]) -> None:
@@ -474,12 +474,3 @@ class Mutator:
         if not parent:
             raise RuntimeError(f"Unable to locate parent for {node}")
         return (node, parent)
-
-    # def updateInsertion(self, mutation: ASTNode, locus: tuple[ASTNode, ASTNode]):
-    #    if not self.ast.rootNode:
-    #        raise RuntimeError("AST was not setup in init for Mutator")
-    #    originalNode = locus[0]
-    #    parentNode = locus[1]
-    #    mutation.ast = parentNode.ast
-    #    parentNode.replaceChild(originalNode, mutation)
-    #    self.ast.nodeCount = countNodes(self.ast.rootNode)

@@ -85,13 +85,24 @@ class Program(ASTNode):
         return "\n".join(str(rule) for rule in self.rules)
 
     def replaceChild(self, oldChild: ASTNode, newChild: ASTNode) -> None:
-        for i, cmd in enumerate(self.rules):
-            if cmd is oldChild:
+        for i, rule in enumerate(self.rules):
+            if rule is oldChild:
                 self.rules[i] = cast(Rule, newChild)
                 newChild.ast = self.ast
                 self.ast.nodeCount += countNodes(newChild) - countNodes(oldChild)
                 return
         raise RuntimeError(f"Unable to replace {oldChild} with {newChild} for {self}.")
+
+    def removeChild(self, child: Rule) -> None:
+        if len(self.rules) == 1:
+            raise RuntimeError(f"Unable to remove {child} for {self}.")
+
+        for i, rule in enumerate(self.rules):
+            if rule is child:
+                del self.rules[i]
+                self.ast.nodeCount -= countNodes(child)
+                return
+        raise RuntimeError(f"Unable to remove {child} for {self}.")
 
 
 class ExpressionNode(ASTNode):
@@ -174,6 +185,24 @@ class Rule(ASTNode):
             )
         newChild.ast = self.ast
         self.ast.nodeCount += countNodes(newChild) - countNodes(oldChild)
+
+    def swapChildren(self, firstChild: Command, secondChild: Command) -> None:
+        if type(firstChild) is Action or type(secondChild) is Action:
+            raise RuntimeError(f"Unable to swap {firstChild} and {secondChild}.")
+
+        firstIndex = -1
+        secondIndex = -1
+        for i, cmd in enumerate(self.commands):
+            if cmd is firstChild:
+                firstIndex = i
+            if cmd is secondChild:
+                secondIndex = i
+        if firstIndex > 0 and secondIndex > 0:
+            tmp = self.commands[firstIndex]
+            self.commands[firstIndex] = self.commands[secondIndex]
+            self.commands[secondIndex] = tmp
+        else:
+            raise RuntimeError(f"Unable to swap {firstChild} and {secondChild}.")
 
 
 class Command(ASTNode):

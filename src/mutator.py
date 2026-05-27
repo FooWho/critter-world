@@ -104,6 +104,7 @@ class Mutator:
         where a new rule can be added, and also to command nodes, where the sequence of updates can be
         extended with another update.
 
+        My Notes:
         On rule 4, Transform, I am going to make a modification to the original spec. They want to shift integer
         literals up or down by a random value that could be large but is going to be heavily clustered around
         [-1, 1]. My getWeightedRandom() method should give a distribution heavily weighted to -1 and 1, with
@@ -127,10 +128,13 @@ class Mutator:
 
         locus = self.generateFaultLocus()
         match locus[0]:
+            case Program():
+                locus = cast(tuple[Program, AbstractSyntaxTree], locus)
+                self.programFaultInjector(locus)
+                return False
             case Rule():
                 locus = cast(tuple[Rule, Program], locus)
-                self.ruleFaultInjector(locus)
-                return True
+                return self.ruleFaultInjector(locus)
             case Update():
                 raise NotImplementedError("updateFaultInjector() not implemented.")
             case Action():
@@ -166,29 +170,95 @@ class Mutator:
                 return False
 
     """
-        <RULE>
-
-        There are [n] valid mutations for a <Rule> node - Remove, Swap, Replace, 
+        <PROGRAM>
     """
 
-    def ruleFaultInjector(self, faultLocus: tuple[Rule, Program]) -> None:
+    def programFaultInjector(
+        self, faultLocus: tuple[Program, AbstractSyntaxTree]
+    ) -> bool:
+        return False
+
+    """
+        </PROGRAM
+    """
+
+    """
+        <RULE>
+
+        There are 3 valid mutations for a <Rule> node - Remove, Swap, and Replace.
+
+        A <Rule> can be removed, as long as there is at least one rule remaining. If we try to remove the last <Rule> we will return False.
+        Otherwise, the rule is removed and the critter has one less rule in its ruleset.
+
+        A <Rule> can have a swap, if it's command block has multiple <Updates>. An <Update> and an <Action> can't swap, as an action must
+        be the last command in a command block. We will return False if we are trying to swap and there is not a valid node to swap with.
+
+        A <Rule> can be replaced, unless there is only one rule, in which case we will return False.
+
+        A transform is not valid. There is nothing to change the rule into, while keeping its children.
+
+        An insert is not valid. The parent of a rule is the program, we can't create another program, put the rule in as a child, 
+        and then attach the new program as a child of the original program.
+
+        A duplicate is not valid. A rule does, in a sense, have a variable number of children, if we consider the command block a 
+        collection of children. However, it would be rare for this type of mutation to succede. For example, the proto-critter
+        has 12 of its 13 rules with an action node.    
+    """
+
+    def ruleFaultInjector(self, faultLocus: tuple[Rule, Program]) -> bool:
         if not self.ast.rootNode:
             raise RuntimeError("AST was not setup in init for Mutator")
         originalNode = faultLocus[0]
         parentNode = faultLocus[1]
-        choice = random.choice([1])
+        choice = random.choice([1, 2, 3])
         match choice:
             case 1:
-                self.ast.rootNode.rules.remove(originalNode)
+                return self.mutateRemoveRule(faultLocus)
+            case 2:
+                return self.mutateSwapRule(faultLocus)
+            case 3:
+                return self.mutateReplaceRule(faultLocus)
             case _:
                 raise NotImplementedError(
                     f"Choice {choice} for ruleFaultInjector() not implemented."
                 )
 
-    def mutateRemoveRuleFaultInjector(self, rule: Rule) -> None:
+    def mutateRemoveRule(self, faultLocus: tuple[Rule, Program]) -> bool:
         if not self.ast.rootNode:
             raise RuntimeError("AST was not setup in init for Mutator")
-        self.ast.rootNode.rules.remove(rule)
+        originalNode = faultLocus[0]
+        parentNode = faultLocus[1]
+
+        if len(parentNode.rules) == 1:
+            # If we are the only rule, we can't be removed, but this was a valid path to follow.
+            # Return False
+            return False
+        parentNode.removeChild(originalNode)
+        return True
+
+    def mutateSwapRule(self, faultLocus: tuple[Rule, Program]) -> bool:
+        originalNode = faultLocus[0]
+        parentNode = faultLocus[1]
+
+        if isinstance(originalNode.commands[-1], Action):
+            # Final command is an action
+            if len(originalNode.commands) >= 3:
+                # But there are at least 2 other commands, we can perform a swap.
+                targets = random.sample(originalNode.commands[:-1], 2)
+                originalNode.swapChildren(targets[0], targets[1])
+                return True
+            return False
+        else:
+            # There is no Action as a final command
+            if len(originalNode.commands) >= 2:
+                # We only need two elements to swap.
+                targets = random.sample(originalNode.commands, 2)
+                originalNode.swapChildren(targets[0], targets[1])
+                return True
+            return False
+
+    def mutateReplaceRule(self, faultLocus: tuple[Rule, Program]) -> bool:
+        raise NotImplementedError("mutateReplaceRule() is not implimented.")
 
     """
         </RULE>
@@ -377,8 +447,6 @@ class Mutator:
         self, faultLocus: tuple[BinaryOperator, ASTNode]
     ) -> bool:
         originalNode = faultLocus[0]
-        # We aren't going to "collapse" double negatives here. A UnaryOperator is fundamentally different from
-        # a BinaryOperator that happens to be subtraction.
         tmp = originalNode.leftOperand
         originalNode.leftOperand = originalNode.rightOperand
         originalNode.rightOperand = tmp

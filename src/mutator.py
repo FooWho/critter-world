@@ -210,12 +210,12 @@ class Mutator:
         
         A <Number> may be transformed by adding a (positive or negative) integer value. Currenty, 
         this always results results in the creation of a new node that replaces the original,
-        i.e. we don't just add to the value. Tyhis could change in the future but probably not.
+        i.e. we don't just add to the value. This could change in the future but probably not.
         The transformation of a <Number> node may result in structural changes to the AST. If a
         positive number becomes negative, a <UnaryOperato> is created to be the parent of the new
-        value and it replaces the original <Number> in the parent's subtree. If a negative number
-        becomes zero or positive, the <UnaryOperator> that would be the existing parent is removed.
-        The new <Number> replaces the <UnaryOperator> in the grandparent subtree.
+        value and it replaces the original <Number> in the parent's subtree. Previously, I was collapsing
+        double negatives into just a number and removing UnaryOperators with an operand of 0, replacing
+        them with just a Number. This is no longer the case, watch out for stale comments.
 
         A <Number> may be inserted as the child of a newly created node and the new node replaces the
         <Number> in the subtree of the parent. If the newly created node requires additional children

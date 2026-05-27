@@ -94,10 +94,10 @@ class TestMutator(unittest.TestCase):
         # 1
         originalNode: Number = cast(Number, parentNode.operand)
 
-        # After mutation -> Program(Rules[0](RelationalOperator(4,3)-->wait))
-        mutator.mutateTransformNumber((originalNode, parentNode), 4)
+        # After mutation -> Program(Rules[0](RelationalOperator(3,3)-->wait))
+        mutator.mutateTransformNumber((originalNode, parentNode), -4)
 
-        # RelationalOperator(4,3)
+        # RelationalOperator(3,3)
         parentNode = cast(
             RelationalOperator, cast(RelationalOperator, program.rules[0].condition)
         )

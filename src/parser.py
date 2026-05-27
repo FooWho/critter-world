@@ -205,12 +205,6 @@ class Parser:
                 unOp = UnaryOperator()
                 unOp.operator = TokenLexeme(op.tokenType, op.lexeme)
                 unOp.operand = self.parseFactor()
-                if isinstance(unOp.operand, UnaryOperator):
-                    # Collapse double negative
-                    return unOp.operand.operand
-                if isinstance(unOp.operand, Number) and unOp.operand.value == 0:
-                    # Collapse negative 0
-                    return unOp.operand
                 return unOp
             case TOKENS.T_L_PAREN:
                 token = self.getToken()

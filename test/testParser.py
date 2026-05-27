@@ -132,6 +132,23 @@ class TestParser(unittest.TestCase):
         node = cast(UnaryOperator, node)
         self.assertIsInstance(node.operand, MemNode)
 
+    def testParseDoubleNegative(self):
+        parser = self.getParser("--5")
+        node = parser.parseFactor()
+        self.assertEqual("--5", str(node))
+        self.assertTrue(isinstance(node, UnaryOperator))
+        negNode = cast(UnaryOperator, node)
+        self.assertTrue(isinstance(negNode.operand, UnaryOperator))
+        negNode = cast(UnaryOperator, negNode.operand)
+        self.assertTrue(isinstance(negNode.operand, Number))
+        self.assertEqual(node.evaluate(), 5)
+
+    def testParseNegativeZero(self):
+        parser = self.getParser("-0")
+        node = parser.parseFactor()
+        self.assertEqual("-0", str(node))
+        self.assertEqual(0, node.evaluate())
+
     def testParseExpressionPrecedence(self):
         parser = self.getParser("2 * 3 + 4")
         node = parser.parseExpression()

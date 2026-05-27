@@ -287,24 +287,11 @@ class Mutator:
         if amount is None:
             amount = self.getWeightedRandom()
 
-        isNegative = isinstance(parentNode, UnaryOperator)
-        current_value = -numberNode.value if isNegative else numberNode.value
-
+        current_value = numberNode.value
         mutationValue = current_value + amount
-
         mutation = Number(value=mutationValue)
-
-        if isNegative:
-            grandparent = self.ast.getParentByNode(parentNode)
-            if not grandparent:
-                raise RuntimeError(
-                    "Could not locate grandparent - mutateTransformNumber()"
-                )
-            grandparent.replaceChild(parentNode, mutation)
-            return True
-        else:
-            parentNode.replaceChild(numberNode, mutation)
-            return True
+        parentNode.replaceChild(numberNode, mutation)
+        return True
 
     def mutateInsertNumber(
         self, faultLocus: tuple[Number, ASTNode], insertType: int | None = None

@@ -87,11 +87,12 @@ class TestAST(unittest.TestCase):
         number15 = Number(Token(TOKENS.T_NUMBER, "15", 0, 0))
         memNode2 = MemNode(number5)
         self.assertEqual(str(memNode2), "PASS")
-        self.assertEqual(MemNode.desugar(Token(TOKENS.T_PASS, "PASS", 0, 0)), memNode2)
+        desugared = MemNode.desugar(Token(TOKENS.T_PASS, "PASS", 0, 0))
+        self.assertEqual(desugared.value.evaluate(), memNode2.value.evaluate())
         binOp = BinaryOperator(number5, TokenLexeme(TOKENS.T_PLUS, "+"), number10)
         memNode3 = MemNode(number15)
         memNode4 = MemNode(binOp)
-        self.assertEqual(memNode3, memNode4)
+        self.assertEqual(memNode3.value.evaluate(), memNode4.value.evaluate())
 
     def testBinaryOperator(self):
         num5 = Number(Token(TOKENS.T_NUMBER, "5", 0, 0))

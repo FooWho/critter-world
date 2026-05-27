@@ -74,7 +74,10 @@ class TestMutator(unittest.TestCase):
             faultLocus = mutator.generateFaultLocus()
             childNode = faultLocus[0]
             parentNode = faultLocus[1]
-            self.assertTrue(childNode in parentNode)
+            if type(childNode) is Program and type(parentNode) is AbstractSyntaxTree:
+                self.assertTrue(parentNode is childNode.ast)
+            else:
+                self.assertTrue(childNode in parentNode)
 
     def testMutateTransformNumberNegativeToZero(self):
         # Negative to Zero
@@ -375,6 +378,129 @@ class TestMutator(unittest.TestCase):
         self.assertIsInstance(update.destination, MemNode)
         outerMem = cast(MemNode, update.destination)
         self.assertIsInstance(outerMem.value, MemNode)
+
+    def testMutateRemoveRule(self):
+        program = self.createProgram("1 = 1 --> wait; 2 = 2 --> forward;")
+        ast = AbstractSyntaxTree(program)
+        mutator = Mutator(ast)
+        rule1 = program.rules[0]
+        rule2 = program.rules[1]
+
+        self.assertEqual(len(program.rules), 2)
+        result = mutator.mutateRemoveRule((rule1, program))
+
+        self.assertTrue(result)
+        self.assertEqual(len(program.rules), 1)
+        self.assertIs(program.rules[0], rule2)
+
+    def testMutateRemoveRuleFailsIfOnlyOne(self):
+        program = self.createProgram("1 = 1 --> wait;")
+        ast = AbstractSyntaxTree(program)
+        mutator = Mutator(ast)
+        rule = program.rules[0]
+
+        result = mutator.mutateRemoveRule((rule, program))
+        self.assertFalse(result)
+
+    def testMutateSwapRuleWithAction(self):
+        program = self.createProgram("1 = 1 --> mem[0] := 1 mem[1] := 2 wait;")
+        ast = AbstractSyntaxTree(program)
+        mutator = Mutator(ast)
+        rule = program.rules[0]
+        cmd1 = rule.commands[0]
+        cmd2 = rule.commands[1]
+        action = rule.commands[2]
+
+        result = mutator.mutateSwapRule((rule, program))
+
+        self.assertTrue(result)
+        self.assertIs(rule.commands[2], action)  # Action must remain at the end
+        self.assertIs(rule.commands[0], cmd2)
+        self.assertIs(rule.commands[1], cmd1)
+
+    def testMutateReplaceRule(self):
+        program = self.createProgram("1 = 1 --> wait; 2 = 2 --> forward;")
+        ast = AbstractSyntaxTree(program)
+        mutator = Mutator(ast)
+        rule1 = program.rules[0]
+        rule2 = program.rules[1]
+
+        result = mutator.mutateReplaceRule((rule1, program))
+
+        self.assertTrue(result)
+        self.assertIsNot(program.rules[0], rule1)
+        self.assertEqual(str(program.rules[0]), str(rule2))  # Must be a copy of rule2
+
+    def testMutateDuplicateRuleWithAction(self):
+        program = self.createProgram("1 = 1 --> mem[0] := 5 wait;")
+        ast = AbstractSyntaxTree(program)
+        mutator = Mutator(ast)
+        rule = program.rules[0]
+
+        result = mutator.mutateDuplicateRule((rule, program))
+
+        self.assertTrue(result)
+        self.assertEqual(len(rule.commands), 3)
+        self.assertIsInstance(rule.commands[0], Update)
+        self.assertIsInstance(rule.commands[1], Update)
+        self.assertIsInstance(rule.commands[2], Action)
+
+    def testMutateSwapBinaryOperator(self):
+        program = self.createProgram("1 < 5 - 3 --> wait;")
+        ast = AbstractSyntaxTree(program)
+        mutator = Mutator(ast)
+        condition = cast(RelationalOperator, program.rules[0].condition)
+        binOp = cast(BinaryOperator, condition.rightOperand)
+
+        left = binOp.leftOperand
+        right = binOp.rightOperand
+
+        result = mutator.mutateSwapBinaryOperator((binOp, condition))
+
+        self.assertTrue(result)
+        self.assertIs(binOp.leftOperand, right)
+        self.assertIs(binOp.rightOperand, left)
+        self.assertEqual(str(binOp), "3 - 5")
+
+    def testMutateTransformBinaryOperator(self):
+        program = self.createProgram("1 < 5 + 3 --> wait;")
+        ast = AbstractSyntaxTree(program)
+        mutator = Mutator(ast)
+        condition = cast(RelationalOperator, program.rules[0].condition)
+        binOp = cast(BinaryOperator, condition.rightOperand)
+
+        result = mutator.mutateTransformBinaryOperator((binOp, condition))
+
+        self.assertTrue(result)
+        self.assertNotEqual(binOp.operator.lexeme, "+")
+        self.assertIn(binOp.operator.lexeme, ["-", "*", "/", "mod"])
+
+    def testMutateSwapRelationalOperator(self):
+        program = self.createProgram("1 < 3 --> wait;")
+        ast = AbstractSyntaxTree(program)
+        mutator = Mutator(ast)
+        condition = cast(RelationalOperator, program.rules[0].condition)
+
+        left = condition.leftOperand
+        right = condition.rightOperand
+
+        mutator.mutateSwapRelationalOperator(condition)
+
+        self.assertIs(condition.leftOperand, right)
+        self.assertIs(condition.rightOperand, left)
+        self.assertEqual(str(condition), "3 < 1")
+
+    def testMutateSwapLogicalOperator(self):
+        program = self.createProgram("1 < 2 and 3 < 4 --> wait;")
+        ast = AbstractSyntaxTree(program)
+        mutator = Mutator(ast)
+        condition = cast(LogicalOperator, program.rules[0].condition)
+
+        left = condition.leftOperand
+        right = condition.rightOperand
+
+        mutator.mutateSwapLogicalOperator(condition)
+        self.assertEqual(str(condition), "3 < 4 and 1 < 2")
 
     def testProgramReplaceChild(self):
         program = self.createProgram("1 = 1 --> wait;")

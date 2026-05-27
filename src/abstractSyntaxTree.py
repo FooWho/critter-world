@@ -104,6 +104,30 @@ class Program(ASTNode):
                 return
         raise RuntimeError(f"Unable to remove {child} for {self}.")
 
+    def swapChildren(self, firstChild: Rule, secondChild: Rule) -> None:
+        firstLocation = -1
+        secondLocation = -1
+
+        for i, rule in enumerate(self.rules):
+            if rule is firstChild:
+                firstLocation = i
+            if rule is secondChild:
+                secondLocation = i
+            if firstLocation >= 0 and secondLocation >= 0:
+                break
+
+        if firstLocation < 0 or secondLocation < 0:
+            raise RuntimeError(f"Unable to swap {firstChild} and {secondChild}.")
+        tmp = self.rules[firstLocation]
+        self.rules[firstLocation] = self.rules[secondLocation]
+        self.rules[secondLocation] = tmp
+
+    def insertChild(self, child: ASTNode, location: int) -> None:
+        child = cast(Rule, child)
+        self.rules.insert(location, child)
+        child.ast = self.ast
+        self.nodeCount += countNodes(child)
+
 
 class ExpressionNode(ASTNode):
     def evaluate(self) -> int:
@@ -197,12 +221,18 @@ class Rule(ASTNode):
                 firstIndex = i
             if cmd is secondChild:
                 secondIndex = i
-        if firstIndex > 0 and secondIndex > 0:
+        if firstIndex >= 0 and secondIndex >= 0:
             tmp = self.commands[firstIndex]
             self.commands[firstIndex] = self.commands[secondIndex]
             self.commands[secondIndex] = tmp
         else:
             raise RuntimeError(f"Unable to swap {firstChild} and {secondChild}.")
+
+    def insertChild(self, newChild: ASTNode, location: int) -> None:
+        newChild = cast(Command, newChild)
+        self.commands.insert(location, newChild)
+        newChild.ast = self.ast
+        self.ast.nodeCount += countNodes(newChild)
 
 
 class Command(ASTNode):
@@ -455,6 +485,39 @@ class BinaryOperator(ExpressionNode):
         newChild.ast = self.ast
         self.ast.nodeCount += countNodes(newChild) - countNodes(oldChild)
 
+    def swapChildren(
+        self, firstChild: ExpressionNode, secondChild: ExpressionNode
+    ) -> None:
+        if self.leftOperand is firstChild:
+            tmp = self.leftOperand
+            self.leftOperand = self.rightOperand
+            self.rightOperand = tmp
+        elif self.rightOperand is firstChild:
+            tmp = self.rightOperand
+            self.rightOperand = self.leftOperand
+            self.leftOperand = tmp
+        else:
+            raise RuntimeError(
+                f"Unable to swap {firstChild} with {secondChild} for {self}."
+            )
+
+    def transformOperator(self, newOperator: str) -> None:
+        match newOperator:
+            case "+":
+                self.operator = TokenLexeme(TOKENS.T_PLUS, "+")
+            case "-":
+                self.operator = TokenLexeme(TOKENS.T_MINUS, "-")
+            case "*":
+                self.operator = TokenLexeme(TOKENS.T_STAR, "*")
+            case "/":
+                self.operator = TokenLexeme(TOKENS.T_DIV, "/")
+            case "mod":
+                self.operator = TokenLexeme(TOKENS.T_MOD, "mod")
+            case _:
+                raise RuntimeError(
+                    f"Unable to replace {self.operator} with {newOperator} for {self}."
+                )
+
 
 class UnaryOperator(ExpressionNode):
     _children = ("operand",)
@@ -593,14 +656,6 @@ class MemNode(ExpressionNode):
         if isinstance(self.value, Number):
             return MemNode.resugar(self.value.evaluate())
         return f"mem[{self.value}]"
-
-    def __eq__(self, value: object) -> bool:
-        if (
-            isinstance(value, MemNode)
-            and value.value.evaluate() == self.value.evaluate()
-        ):
-            return True
-        return False
 
     def evaluate(self) -> int:
         return 0

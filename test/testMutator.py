@@ -76,42 +76,9 @@ class TestMutator(unittest.TestCase):
             parentNode = faultLocus[1]
             self.assertTrue(childNode in parentNode)
 
-    def testMutateTransformNumberNegativeToPositive(self):
-        # Negative to Positive
-        # UnaryNode should go away -- left operand goes from UnaryOperand(1) to 4. UnaryOperator(1) + 5 = 4.
-        # Node count chages from 7 to 6 because UnaryNode is gone.
-        program = self.createProgram("-1 < 3 --> wait;")
-        ast = AbstractSyntaxTree(program)
-        mutator = Mutator(ast)
-        # 7 Nodes to begin: Rule, RelationalOperator, UnaryOperator, Number, Number, Action
-        self.assertEqual(ast.nodeCount, 7)
-        # Program(Rules[0](RelationalOperator(UnaryOperator(1),3)-->wait))
-        # UnaryOperator(1)
-        parentNode = cast(
-            UnaryOperator,
-            cast(RelationalOperator, program.rules[0].condition).leftOperand,
-        )
-        # 1
-        originalNode: Number = cast(Number, parentNode.operand)
-
-        # After mutation -> Program(Rules[0](RelationalOperator(3,3)-->wait))
-        mutator.mutateTransformNumber((originalNode, parentNode), -4)
-
-        # RelationalOperator(3,3)
-        parentNode = cast(
-            RelationalOperator, cast(RelationalOperator, program.rules[0].condition)
-        )
-        # 4
-        mutation = parentNode.leftOperand
-        self.assertIsInstance(mutation, Number)
-        self.assertEqual(mutation.evaluate(), 3)
-
-        # Now only 6 nodes: Rule, RelatinalOperator, Number, Number, Action
-        self.assertEqual(ast.nodeCount, 6)
-
     def testMutateTransformNumberNegativeToZero(self):
         # Negative to Zero
-        # UnaryNode should go away -- left operand goes from UnaryOperand(1) to 0. UnaryOperand(1) + 1 = 0
+        # Left operand goes from UnaryOperand(1) to UnaryOperand(0).
         program = self.createProgram("-1 < 3 --> wait;")
         ast = AbstractSyntaxTree(program)
         mutator = Mutator(ast)
@@ -123,11 +90,12 @@ class TestMutator(unittest.TestCase):
         parentNode = cast(UnaryOperator, parentNode)
         originalNode = cast(Number, parentNode.operand)
         self.assertEqual(originalNode.value, 1)
-        mutator.mutateTransformNumber((originalNode, parentNode), 1)
-        self.assertIsInstance(condition.leftOperand, Number)
-        mutation = cast(Number, condition.leftOperand)
-        self.assertEqual(mutation.value, 0)
-        self.assertEqual(ast.nodeCount, 6)
+        mutator.mutateTransformNumber((originalNode, parentNode), -1)
+        self.assertIsInstance(condition.leftOperand, UnaryOperator)
+        mutation = cast(UnaryOperator, condition.leftOperand)
+        self.assertEqual(mutation.evaluate(), 0)
+        self.assertEqual(ast.nodeCount, 7)
+        self.assertEqual(str(condition), "-0 < 3")
 
     def testMutateTransformNumberPositiveToNegative(self):
         # Positive to Negative
@@ -170,8 +138,8 @@ class TestMutator(unittest.TestCase):
         self.assertEqual(condition.leftOperand.evaluate(), 5)
         self.assertEqual(ast.nodeCount, 6)
 
-    def testMutateTransformNumberNegativeToNegative(self):
-        # Negative to Negative
+    def testMutateTransformNumberNegativeToDoubleNegative(self):
+        # Negative to Double Negative
         program = self.createProgram("-2 < 3 --> wait;")
         ast = AbstractSyntaxTree(program)
         mutator = Mutator(ast)
@@ -179,10 +147,22 @@ class TestMutator(unittest.TestCase):
         condition = cast(RelationalOperator, program.rules[0].condition)
         parentNode = cast(UnaryOperator, condition.leftOperand)
         originalNode = cast(Number, parentNode.operand)
-        mutator.mutateTransformNumber((originalNode, parentNode), -3)  # -2 + -3 = -5
+        mutator.mutateTransformNumber(
+            (originalNode, parentNode), -3
+        )  # UnaryOperator(2) + (-3) = UnaryOperator(UnaryOperator(1))
         self.assertIsInstance(condition.leftOperand, UnaryOperator)
-        self.assertEqual(condition.leftOperand.evaluate(), -5)
-        self.assertEqual(ast.nodeCount, 7)
+        negNode = cast(UnaryOperator, condition.leftOperand)
+        self.assertEqual(negNode.evaluate(), 1)
+        self.assertIsInstance(negNode.operand, UnaryOperator)
+        negNode = cast(UnaryOperator, negNode.operand)
+        self.assertEqual(negNode.evaluate(), -1)
+        self.assertIsInstance(negNode.operand, Number)
+        number = cast(Number, negNode.operand)
+        self.assertEqual(number.evaluate(), 1)
+        # Node count increased by one because we introduced a new UnaryOperator node.
+        self.assertEqual(ast.nodeCount, 8)
+        self.assertEqual(str(condition), "--1 < 3")
+        self.assertEqual(condition.leftOperand.evaluate(), 1)
 
     def testMutateInsertNumberUnaryOperator(self):
         program = self.createProgram("1 < 2 --> wait;")

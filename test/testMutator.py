@@ -186,8 +186,8 @@ class TestMutator(unittest.TestCase):
 
     def testMutateInsertNumberUnaryOperatorDoubleNegative(self):
         # Set new faultLocus. We are going to insert a UnaryOperator as the parent
-        # of the -1 in the expression "-1 < 2". This would create a double negative.
-        # The resulting expression will actually be "1 < 2"
+        # of the -1 in the expression "-1 < 2". This will create a double negative.
+        # The resulting expression will be "--1 < 2"
         program = self.createProgram("-1 < 2 --> wait;")
         ast = AbstractSyntaxTree(program)
         mutator = Mutator(ast)

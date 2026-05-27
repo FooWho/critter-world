@@ -417,7 +417,7 @@ class TestMutator(unittest.TestCase):
             rule.replaceChild(missingCommand, newCommand)
 
     def testUnaryReplaceChildDoubleNegative(self):
-        # Test double negative collapsing logic in UnaryOperator
+        # Replacing the child of a UnaryOperator with another UnaryOperator should result in a double negative.
         program = self.createProgram("-1 = -1 --> wait;")
         ast = AbstractSyntaxTree(program)
         condition = cast(RelationalOperator, program.rules[0].condition)
@@ -426,6 +426,12 @@ class TestMutator(unittest.TestCase):
         newChild = UnaryOperator(TokenLexeme(TOKENS.T_MINUS, "-"), Number(value=5))
         unaryOp.replaceChild(unaryOp.operand, newChild)
 
-        # The double negative should no longer collapse
+        # There should be a double negative and it should evaluate to a positive number.
         self.assertIsInstance(condition.leftOperand, UnaryOperator)
-        self.assertEqual(condition.leftOperand.evaluate(), 5)
+        unaryOp = cast(UnaryOperator, condition.leftOperand)
+        self.assertIsInstance(unaryOp.operand, UnaryOperator)
+        child = cast(UnaryOperator, unaryOp.operand)
+        self.assertEqual(str(unaryOp), "--5")
+        self.assertEqual(unaryOp.evaluate(), 5)
+        self.assertEqual(str(child), "-5")
+        self.assertEqual(child.evaluate(), -5)

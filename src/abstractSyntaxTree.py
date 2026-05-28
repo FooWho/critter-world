@@ -1,6 +1,14 @@
 from __future__ import annotations
 from typing import Any, ClassVar, Iterator, TypeVar, Generator, TYPE_CHECKING, cast
-from schemas import TokenLexeme, TOKENS, Token, SET_MULOPS, SET_ADDOPS, T_NONE
+from schemas import (
+    TokenLexeme,
+    TOKENS,
+    Token,
+    SET_MULOPS,
+    SET_ADDOPS,
+    SET_RELOPS,
+    T_NONE,
+)
 import copy
 
 T = TypeVar("T", bound="ASTNode")
@@ -314,6 +322,18 @@ class Action(Command):
     def __str__(self) -> str:
         return f"{self.actionType.lexeme}"
 
+    def transformAction(
+        self, newTokenType: TOKENS, scavengedExpression: ExpressionNode | None = None
+    ) -> Action:
+        lexeme = newTokenType.name.split("_")[1].lower()
+        token = Token(newTokenType, lexeme, 0, 0)
+
+        if newTokenType == TOKENS.T_SERVE:
+            expr = scavengedExpression if scavengedExpression else Number(value=1)
+            return ServeAction(token, expr)
+        else:
+            return Action(token)
+
 
 class ServeAction(Action):
     _children = ("value",)
@@ -393,6 +413,16 @@ class LogicalOperator(BooleanOperator):
             return True
         return False
 
+    def transformOperator(self) -> None:
+        if self.operator.tokenType is TOKENS.T_AND:
+            self.operator = TokenLexeme(TOKENS.T_OR, "or")
+        elif self.operator.tokenType is TOKENS.T_OR:
+            self.operator = TokenLexeme(TOKENS.T_AND, "and")
+        else:
+            raise RuntimeError(
+                f"LogicalOperator {self} has invalid operator {self.operator}!"
+            )
+
 
 class RelationalOperator(BooleanOperator):
     _children = ("leftOperand", "rightOperand")
@@ -435,6 +465,11 @@ class RelationalOperator(BooleanOperator):
                 raise ValueError(
                     f'Expected <RelationalOperator> in evaluation. Saw: "{self.operator.lexeme}"'
                 )
+
+    def transformOperator(self, operator: TokenLexeme) -> None:
+        if operator.tokenType not in SET_RELOPS:
+            raise RuntimeError(f"Invalid operator {operator.tokenType} for {self}.")
+        self.operator = operator
 
 
 class BinaryOperator(ExpressionNode):

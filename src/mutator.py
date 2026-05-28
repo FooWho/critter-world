@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import cast
 from enum import Enum
 import random, math
-from schemas import TOKENS, Token, TokenLexeme
+from schemas import TOKENS, Token, TokenLexeme, SET_ACTIONS, SET_RELOPS, SET_LOGICOPS
 from abstractSyntaxTree import (
     AbstractSyntaxTree,
     countNodes,
@@ -17,11 +17,17 @@ from abstractSyntaxTree import (
     SensorNode,
     RelationalOperator,
     LogicalOperator,
+    BooleanOperator,
     Update,
     Action,
     Command,
     Rule,
 )
+
+
+class Side(Enum):
+    LEFT = 0
+    RIGHT = 1
 
 
 class Mutations(Enum):
@@ -60,6 +66,8 @@ class Mutator:
         TOKENS.T_AHEAD: "ahead",
         TOKENS.T_NEARBY: "nearby",
         TOKENS.T_RANDOM: "random",
+        TOKENS.T_AND: "and",
+        TOKENS.T_OR: "or",
     }
 
     def __init__(
@@ -72,7 +80,6 @@ class Mutator:
         self.mutationProbability = mutationProbability
 
     def getWeightedRandom(self):
-
         loc = random.choice([-1, 1])
         beta = 1.5
         variation = random.expovariate(1 / beta) * random.choice([-1, 1])
@@ -150,7 +157,6 @@ class Mutator:
         the node selected for mutation, but a "remove" mutation removes the node selected for mutation. So sometimes the
         action is happening on the node selected for mutation, other times it is happening on the children. Something
         is always happening to the selected node, but it sometimes feels more like a side effect.
-
         """
 
     def mutate(self, mutations: int) -> bool:
@@ -176,10 +182,12 @@ class Mutator:
                 case Action():
                     raise NotImplementedError("actionFaultInjector() not implemented.")
                 case LogicalOperator():
-                    locus = cast(tuple[LogicalOperator, ASTNode], locus)
+                    locus = cast(tuple[LogicalOperator, Rule | LogicalOperator], locus)
                     success = self.logicalOperatorFaultInjector(locus)
                 case RelationalOperator():
-                    locus = cast(tuple[RelationalOperator, ASTNode], locus)
+                    locus = cast(
+                        tuple[RelationalOperator, LogicalOperator | Rule], locus
+                    )
                     success = self.relationalOperatorFaultInjector(locus)
                 case BinaryOperator():
                     locus = cast(tuple[BinaryOperator, ASTNode], locus)
@@ -299,9 +307,9 @@ class Mutator:
         An insert is not valid. The parent of a rule is the program, we can't create another program, put the rule in as a child, 
         and then attach the new program as a child of the original program.
 
-        A duplicate can be performed by randomly selecting an <Update> from some other location in the AST and inserting it into
-        a random location in the command block, as long as it precedes the Action (if present). ¿Should I allow an Action to be selected as well?
-        ¿If I do, should I automatically put it at the end?
+        A duplicate can be performed by randomly selecting a <Command> from some other location in the AST and inserting it into
+        a random location in the command block, as long as it precedes the Action (if present). If the <Rule> does not have an
+        Action, the duplication can be to insert an Action as the last Command.
     """
 
     def ruleFaultInjector(self, faultLocus: tuple[Rule, Program]) -> bool:
@@ -371,7 +379,6 @@ class Mutator:
         self, faultLocus: tuple[Rule, Program], target: Command | None = None
     ) -> bool:
         originalNode = faultLocus[0]
-        parentNode = faultLocus[1]
 
         candidates = []
         if not target:
@@ -477,11 +484,346 @@ class Mutator:
         <ACTION>
         There are 3 valid mutations for an Action node - Remove, Replace, and Transform.
 
-        An Action node may be removed, so long as the Rule has at least one other Command
+        An Action node may be removed, so long as the Rule has at least one other Command.
+
+        An Action may be replaced by selecting a random Action from elsewhere in the AST, copying it and putting it
+        int the place of this Action.
+
+        An Action may be transformed by changing it to an Action of a different type, for example, "wait" could
+        be tranformed to "forward".
+    """
+
+    def actionFaultInjector(
+        self, faultLocus: tuple[Action, Rule], faultType: Mutations | None = None
+    ) -> bool:
+        if not faultType:
+            faultType = random.choice(
+                [Mutations.REMOVE, Mutations.REPLACE, Mutations.TRANSFORM]
+            )
+
+        match faultType:
+            case Mutations.REMOVE:
+                return self.mutateActionRemove(faultLocus)
+            case Mutations.REPLACE:
+                return self.mutateActionReplace(faultLocus)
+            case Mutations.TRANSFORM:
+                return self.mutateActionTransform(faultLocus)
+            case _:
+                raise RuntimeError(
+                    f"{faultType} for actionFaultInjector() not implemented."
+                )
+        return False
+
+    def mutateActionRemove(self, faultLocus: tuple[Action, Rule]) -> bool:
+        originalNode = faultLocus[0]
+        parentNode = faultLocus[1]
+
+        if len(parentNode.commands) == 1:
+            # We can't remove the only Command a Rule has
+            return False
+        parentNode.removeChild(originalNode)
+        return True
+
+    def mutateActionReplace(
+        self, faultLocus: tuple[Action, Rule], mutation: Action | None = None
+    ) -> bool:
+        originalNode = faultLocus[0]
+        parentNode = faultLocus[1]
+
+        mutation = (
+            random.choice(
+                [
+                    selection
+                    for selection in self.ast.getNodesByType(Action)
+                    if selection is not originalNode
+                ]
+            )
+            if not mutation
+            else mutation
+        )
+        if not mutation:
+            # There were no valid selections
+            return False
+        mutation = cast(Action, mutation.copyNode())
+        parentNode.replaceChild(originalNode, mutation)
+        return True
+
+    def mutateActionTransform(
+        self, faultLocus: tuple[Action, Rule], targetTokenType: TOKENS | None = None
+    ) -> bool:
+        originalNode = faultLocus[0]
+        parentNode = faultLocus[1]
+
+        candidates = list(SET_ACTIONS)
+        if originalNode.actionType.tokenType in candidates:
+            candidates.remove(originalNode.actionType.tokenType)
+
+        newTokenType = targetTokenType if targetTokenType else random.choice(candidates)
+
+        expr = None
+        if newTokenType == TOKENS.T_SERVE:
+            exprCandidates = self.ast.getNodesByType(ExpressionNode)
+            if exprCandidates:
+                expr = cast(ExpressionNode, random.choice(exprCandidates).copyNode())
+
+        mutation = originalNode.transformAction(newTokenType, expr)
+        parentNode.replaceChild(originalNode, mutation)
+        return True
 
     """
-    """
         </ACTION
+    """
+
+    """
+        <LOGICAL_OPERATOR>
+
+        There are 5 valid mutations for a LogicalOperator node - Remove, Swap, Replace, Transform, and Insert.
+
+        A LogicalOperator can be removed. For example, a Rule with the Condition 
+        "ENERGY > 500 or ahead[2] < -10 and SIZE > 3", if we were to select the "or" node for removal, the condition
+        would become "ENERGY > 500" or "ahead[2] < -10 and SIZE > 3" by promoting the right or left operand. If the
+        "and" node had been selected for removal, the condition would become "ENERGY > 500 or ahead[2] < -10" or
+        "ENERGY > 500 or SIZE > 3" by randomly promoting the right or left operand.
+
+        A swap is straightforward.
+
+        A replace is also straigtforward.
+
+        A transform simply changes an "and" to an "or" and vice versa.
+
+        An insertion is performed by generating a new LogicalOperator, randomly assignined to be an "and" or an
+        "or" randomly assigning the original node to be the right or left child, then randomly selecting another
+        node that is a BooleanOperator from somewhere in the AST and inserting it as the other child.
+    """
+
+    def logicalOperatorFaultInjector(
+        self,
+        faultLocus: tuple[LogicalOperator, Rule | LogicalOperator],
+        faultType: Mutations | None = None,
+    ) -> bool:
+
+        if not faultType:
+            faultType = random.choice(
+                [
+                    Mutations.REMOVE,
+                    Mutations.SWAP,
+                    Mutations.REPLACE,
+                    Mutations.TRANSFORM,
+                    Mutations.INSERT,
+                ]
+            )
+        match faultType:
+            case Mutations.REMOVE:
+                return self.mutateLogicalOperatorRemove(faultLocus)
+            case Mutations.SWAP:
+                return self.mutateLogicalOperatorSwap(faultLocus)
+            case Mutations.REPLACE:
+                return self.mutateLogicalOperatorReplace(faultLocus)
+            case Mutations.TRANSFORM:
+                return self.mutateLogicalOperatorTransform(faultLocus)
+            case Mutations.INSERT:
+                return self.mutateLogicalOperatorInsert(faultLocus)
+            case _:
+                raise RuntimeError(
+                    f"{faultType} for logicalOperatorFaultInjector() not implemented."
+                )
+
+        return False
+
+    def mutateLogicalOperatorRemove(
+        self, faultLocus: tuple[LogicalOperator, Rule | LogicalOperator]
+    ) -> bool:
+        originalNode = faultLocus[0]
+        parentNode = faultLocus[1]
+
+        side = random.choice([Side.LEFT, Side.RIGHT])
+        if side == Side.LEFT:
+            parentNode.replaceChild(originalNode, originalNode.leftOperand)
+        elif side == Side.RIGHT:
+            parentNode.replaceChild(originalNode, originalNode.rightOperand)
+        else:
+            raise RuntimeError(
+                f"{side} is not valid for mutateLogicalOperatorRemove() in {self}."
+            )
+        return True
+
+    def mutateLogicalOperatorSwap(
+        self, faultLocus: tuple[LogicalOperator, Rule | LogicalOperator]
+    ) -> bool:
+        originalNode = faultLocus[0]
+        originalNode.swapChildren()
+        return True
+
+    def mutateLogicalOperatorReplace(
+        self, faultLocus: tuple[LogicalOperator, Rule | LogicalOperator]
+    ) -> bool:
+        originalNode = faultLocus[0]
+        parentNode = faultLocus[1]
+
+        candidates = [
+            selection
+            for selection in self.ast.getNodesByType(LogicalOperator)
+            if selection is not originalNode
+        ]
+        if not candidates:
+            # No valid cadidates for the replacement
+            return False
+        target = cast(LogicalOperator, random.choice(candidates).copyNode())
+        parentNode.replaceChild(originalNode, target)
+        return True
+
+    def mutateLogicalOperatorTransform(
+        self, faultLocus: tuple[LogicalOperator, Rule | LogicalOperator]
+    ) -> bool:
+        originalNode = faultLocus[0]
+        originalNode.transformOperator()
+        return True
+
+    def mutateLogicalOperatorInsert(
+        self, faultLocus: tuple[LogicalOperator, Rule | LogicalOperator]
+    ) -> bool:
+        originalNode = faultLocus[0]
+        parentNode = faultLocus[1]
+
+        operatorType = random.choice([TOKENS.T_AND, TOKENS.T_OR])
+        operator = TokenLexeme(operatorType, (self.operatorMap.get(operatorType)) or "")
+        side = random.choice([Side.LEFT, Side.RIGHT])
+        candidates = [
+            selection
+            for selection in self.ast.getNodesByType(LogicalOperator)
+            if selection is not originalNode
+        ]
+        if not candidates:
+            # There were no valid candidates for the other side of the operator.
+            return False
+        otherOperand = cast(LogicalOperator, random.choice(candidates).copyNode())
+        if side == Side.LEFT:
+            mutation = LogicalOperator(originalNode, operator, otherOperand)
+        elif side == Side.RIGHT:
+            mutation = LogicalOperator(otherOperand, operator, originalNode)
+        else:
+            raise RuntimeError(
+                f"No valid side in mutateLogicalOperatorInsert() for {self}."
+            )
+        parentNode.replaceChild(originalNode, mutation)
+        return True
+
+    """
+        </LOGICAL_OPERATOR>
+    """
+
+    """
+        <RELATIONAL_OPERATOR>
+
+        There are 5 valid mutations for <RelationalOperators> - Swap, Replace, Transform, Insert.
+    """
+
+    def relationalOperatorFaultInjector(
+        self, faultLocus: tuple[RelationalOperator, LogicalOperator | Rule]
+    ) -> bool:
+
+        choice = random.choice(
+            [
+                Mutations.SWAP,
+                Mutations.REPLACE,
+                Mutations.TRANSFORM,
+                Mutations.INSERT,
+            ]
+        )
+        match choice:
+            case Mutations.SWAP:
+                return self.mutateRelationalOperatorSwap(faultLocus)
+            case Mutations.REPLACE:
+                return self.mutateRelationalOperatorReplace(faultLocus)
+            case Mutations.TRANSFORM:
+                return self.mutateRelationalOperatorTransform(faultLocus)
+            case Mutations.INSERT:
+                return self.mutateRelationalOperatorInsert(faultLocus)
+            case _:
+                raise NotImplementedError(
+                    f"Choice {choice} for relationOperationFaultInjector() not implemented."
+                )
+
+    def mutateRelationalOperatorSwap(
+        self, faultLocus: tuple[RelationalOperator, LogicalOperator | Rule]
+    ) -> bool:
+        originalNode = faultLocus[0]
+        originalNode.swapChildren()
+        return True
+
+    def mutateRelationalOperatorReplace(
+        self, faultLocus: tuple[RelationalOperator, LogicalOperator | Rule]
+    ) -> bool:
+        originalNode = faultLocus[0]
+        parentNode = faultLocus[1]
+
+        candidates = [
+            selection
+            for selection in self.ast.getNodesByType(BooleanOperator)
+            if selection is not originalNode
+        ]
+        if not candidates:
+            # No valid cadidates for the replacement
+            return False
+        target = cast(BooleanOperator, random.choice(candidates).copyNode())
+        parentNode.replaceChild(originalNode, target)
+        return True
+
+    def mutateRelationalOperatorTransform(
+        self, faultLocus: tuple[RelationalOperator, LogicalOperator | Rule]
+    ) -> bool:
+        originalNode = faultLocus[0]
+        parentNode = faultLocus[1]
+
+        candidates = list(SET_RELOPS)
+        if originalNode.operator.tokenType in candidates:
+            candidates.remove(originalNode.operator.tokenType)
+        target = random.choice(candidates)
+        lexeme = self.operatorMap.get(target)
+        if not lexeme:
+            raise RuntimeError(f"Failed to get lexeme for {target}.")
+        originalNode.transformOperator(TokenLexeme(target, lexeme))
+        return True
+
+    def mutateRelationalOperatorInsert(
+        self, faultLocus: tuple[RelationalOperator, LogicalOperator | Rule]
+    ) -> bool:
+        originalNode = faultLocus[0]
+        parentNode = faultLocus[1]
+
+        operators = [
+            TOKENS.T_AND,
+            TOKENS.T_OR,
+        ]
+        token = random.choice(operators)
+        lexeme = self.operatorMap.get(token)
+        if not lexeme:
+            raise RuntimeError(f"Failed to get lexeme for {token}.")
+        operator = TokenLexeme(token, lexeme)
+        candidates = [
+            selection
+            for selection in self.ast.getNodesByType(BooleanOperator)
+            if selection is not originalNode
+        ]
+        if not candidates:
+            # No valid cadidates for the replacement
+            return False
+
+        otherOperand = cast(BooleanOperator, random.choice(candidates).copyNode())
+
+        side = random.choice([Side.LEFT, Side.RIGHT])
+        if side == Side.LEFT:
+            mutation = LogicalOperator(originalNode, operator, otherOperand)
+        elif side == Side.RIGHT:
+            mutation = LogicalOperator(otherOperand, operator, originalNode)
+        else:
+            raise RuntimeError(f"Bad side: {side} in mutateRelationalOperatorInsert().")
+
+        parentNode.replaceChild(originalNode, mutation)
+        return True
+
+    """
+        </RELATIONAL_OPERATOR>
     """
 
     """
@@ -523,7 +865,7 @@ class Mutator:
     """
 
     def numberFaultInjector(
-        self, faultLocus: tuple[Number, ASTNode], faultType: int | None = None
+        self, faultLocus: tuple[Number, ASTNode], faultType: Mutations | None = None
     ) -> bool:
         if faultType:
             choice = faultType
@@ -533,17 +875,17 @@ class Mutator:
             )
         match choice:
             case Mutations.REPLACE:
-                return self.mutateReplaceNumber(faultLocus)
+                return self.mutateNumberReplace(faultLocus)
             case Mutations.TRANSFORM:
-                return self.mutateTransformNumber(faultLocus)
+                return self.mutateNumberTransform(faultLocus)
             case Mutations.INSERT:
-                return self.mutateInsertNumber(faultLocus)
+                return self.mutateNumberInsert(faultLocus)
             case _:
                 raise NotImplementedError(
                     f"Choice {choice} for numberFaultInjector() not implemented."
                 )
 
-    def mutateReplaceNumber(
+    def mutateNumberReplace(
         self,
         faultLocus: tuple[Number, ASTNode],
         mutation: ExpressionNode | None = None,
@@ -569,7 +911,7 @@ class Mutator:
         parentNode.replaceChild(originalNode, mutation)
         return True
 
-    def mutateTransformNumber(
+    def mutateNumberTransform(
         self, faultLocus: tuple[Number, ASTNode], amount: int | None = None
     ) -> bool:
 
@@ -586,7 +928,7 @@ class Mutator:
         parentNode.replaceChild(numberNode, mutation)
         return True
 
-    def mutateInsertNumber(
+    def mutateNumberInsert(
         self, faultLocus: tuple[Number, ASTNode], insertType: NodeType | None = None
     ) -> bool:
 
@@ -707,13 +1049,13 @@ class Mutator:
         )
         match choice:
             case Mutations.REMOVE:
-                return self.mutateRemoveBinaryOperator(faultLocus)
+                return self.mutateBinaryOperatorRemove(faultLocus)
             case Mutations.SWAP:
-                return self.mutateSwapBinaryOperator(faultLocus)
+                return self.mutateBinaryOperatorSwap(faultLocus)
             case Mutations.REPLACE:
-                return self.mutateReplaceBinaryOperator(faultLocus)
+                return self.mutateBinaryOperatorReplace(faultLocus)
             case Mutations.TRANSFORM:
-                return self.mutateTransformBinaryOperator(faultLocus)
+                return self.mutateBinaryOperatorTransform(faultLocus)
             case Mutations.INSERT:
                 raise NotImplementedError(
                     f"Choice {choice} for binaryOperationFaultInjector() not implimented."
@@ -723,7 +1065,7 @@ class Mutator:
                     f"Choice {choice} for binaryOperationFaultInjector() not implimented."
                 )
 
-    def mutateRemoveBinaryOperator(
+    def mutateBinaryOperatorRemove(
         self, faultLocus: tuple[BinaryOperator, ASTNode]
     ) -> bool:
         originalNode = faultLocus[0]
@@ -740,7 +1082,7 @@ class Mutator:
                 )
         return True
 
-    def mutateSwapBinaryOperator(
+    def mutateBinaryOperatorSwap(
         self, faultLocus: tuple[BinaryOperator, ASTNode]
     ) -> bool:
         if not self.ast.rootNode:
@@ -749,7 +1091,7 @@ class Mutator:
         originalNode.swapChildren()
         return True
 
-    def mutateReplaceBinaryOperator(
+    def mutateBinaryOperatorReplace(
         self, faultLocus: tuple[BinaryOperator, ASTNode]
     ) -> bool:
         originalNode = faultLocus[0]
@@ -762,7 +1104,7 @@ class Mutator:
         parentNode.replaceChild(originalNode, cast(ExpressionNode, mutation.copyNode()))
         return True
 
-    def mutateTransformBinaryOperator(
+    def mutateBinaryOperatorTransform(
         self, faultLocus: tuple[BinaryOperator, ASTNode]
     ) -> bool:
         originalNode = faultLocus[0]
@@ -776,46 +1118,6 @@ class Mutator:
     """
         </BinaryOperator>
     """
-
-    def relationalOperatorFaultInjector(
-        self, faultLocus: tuple[RelationalOperator, ASTNode]
-    ) -> None:
-        originalNode = faultLocus[0]
-        parentNode = faultLocus[1]
-        choice = random.choice([0])
-        match choice:
-            case Mutations.SWAP:
-                self.mutateSwapRelationalOperator(originalNode)
-            case _:
-                raise NotImplementedError(
-                    f"Choice {choice} for relationOperationFaultInjector() not implimented."
-                )
-
-    def mutateSwapRelationalOperator(
-        self, relationalOperator: RelationalOperator
-    ) -> None:
-        tmp = relationalOperator.leftOperand
-        relationalOperator.leftOperand = relationalOperator.rightOperand
-        relationalOperator.rightOperand = tmp
-
-    def logicalOperatorFaultInjector(
-        self, faultLocus: tuple[LogicalOperator, ASTNode]
-    ) -> None:
-        originalNode = faultLocus[0]
-
-        choice = random.choice([Mutations.SWAP])
-        match choice:
-            case Mutations.SWAP:
-                self.mutateSwapLogicalOperator(originalNode)
-            case _:
-                raise NotImplementedError(
-                    f"Choice {choice} for logicalOperatorFaultInjector() not implemented."
-                )
-
-    def mutateSwapLogicalOperator(self, logicalOperator: LogicalOperator) -> None:
-        tmp = logicalOperator.leftOperand
-        logicalOperator.leftOperand = logicalOperator.rightOperand
-        logicalOperator.rightOperand = tmp
 
     def sensorFaultInjector(self, faultLocus: tuple[SensorNode, ASTNode]) -> bool:
         originalNode = faultLocus[0]
@@ -863,15 +1165,15 @@ class Mutator:
         )
         match choice:
             case Mutations.REPLACE:
-                return self.mutateReplaceMemNode(faultLocus)
+                return self.mutateMemNodeReplace(faultLocus)
             case Mutations.INSERT:
-                return self.mutateInsertMemNode(faultLocus)
+                return self.mutateMemNodeInsert(faultLocus)
             case _:
                 raise NotImplementedError(
                     f"Choice {choice} for memNodeFaultInjector() not implemented."
                 )
 
-    def mutateReplaceMemNode(
+    def mutateMemNodeReplace(
         self, faultLocus: tuple[MemNode, ASTNode], mutation: ASTNode | None = None
     ) -> bool:
         originalNode = faultLocus[0]
@@ -901,7 +1203,7 @@ class Mutator:
         parentNode.replaceChild(originalNode, mutation)
         return True
 
-    def mutateInsertMemNode(
+    def mutateMemNodeInsert(
         self, faultLocus: tuple[MemNode, ASTNode], insertType: NodeType | None = None
     ) -> bool:
         originalNode = faultLocus[0]

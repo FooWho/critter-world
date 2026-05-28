@@ -25,6 +25,7 @@ from abstractSyntaxTree import (
     countNodes,
 )
 from mutator import Mutator, NodeType
+from schemas import SET_RELOPS
 import random
 
 
@@ -82,7 +83,7 @@ class TestMutator(unittest.TestCase):
             else:
                 self.assertTrue(childNode in parentNode)
 
-    def testMutateTransformNumberNegativeToZero(self):
+    def testNumberTransformNegativeToZero(self):
         # Negative to Zero
         # Left operand goes from UnaryOperand(1) to UnaryOperand(0).
         program = self.createProgram("-1 < 3 --> wait;")
@@ -96,14 +97,14 @@ class TestMutator(unittest.TestCase):
         parentNode = cast(UnaryOperator, parentNode)
         originalNode = cast(Number, parentNode.operand)
         self.assertEqual(originalNode.value, 1)
-        mutator.mutateTransformNumber((originalNode, parentNode), -1)
+        mutator.mutateNumberTransform((originalNode, parentNode), -1)
         self.assertIsInstance(condition.leftOperand, UnaryOperator)
         mutation = cast(UnaryOperator, condition.leftOperand)
         self.assertEqual(mutation.evaluate(), 0)
         self.assertEqual(ast.nodeCount, 7)
         self.assertEqual(str(condition), "-0 < 3")
 
-    def testMutateTransformNumberPositiveToNegative(self):
+    def testNumberTransformPositiveToNegative(self):
         # Positive to Negative
         # UnaryNode should get added -- left operand goes from 1 to UnaryOperator(3). 1 + (-4) = UnaryOperator(3)
         # Node cound goes from 6 to 7.
@@ -117,7 +118,7 @@ class TestMutator(unittest.TestCase):
         originalNode = cast(Number, parentNode.leftOperand)
         self.assertEqual(originalNode.value, originalNode.evaluate())
         self.assertEqual(originalNode.evaluate(), 1)
-        mutator.mutateTransformNumber((originalNode, parentNode), -4)
+        mutator.mutateNumberTransform((originalNode, parentNode), -4)
         # Left operand of the condition is no longer originalNode, it's an orphan and the child is a UnaryOperator
         self.assertFalse(
             cast(RelationalOperator, program.rules[0].condition).leftOperand
@@ -130,7 +131,7 @@ class TestMutator(unittest.TestCase):
         self.assertEqual(parent.evaluate(), -3)
         self.assertEqual(ast.nodeCount, 7)
 
-    def testMutateTransformNumberPositiveToPositive(self):
+    def testNumberTransformPositiveToPositive(self):
         # Positive to Positive
         program = self.createProgram("1 < 3 --> wait;")
         ast = AbstractSyntaxTree(program)
@@ -139,12 +140,12 @@ class TestMutator(unittest.TestCase):
         condition = cast(RelationalOperator, program.rules[0].condition)
         parentNode = cast(RelationalOperator, condition)
         originalNode = cast(Number, parentNode.leftOperand)
-        mutator.mutateTransformNumber((originalNode, parentNode), 4)  # 1 + 4 = 5
+        mutator.mutateNumberTransform((originalNode, parentNode), 4)  # 1 + 4 = 5
         self.assertIsInstance(condition.leftOperand, Number)
         self.assertEqual(condition.leftOperand.evaluate(), 5)
         self.assertEqual(ast.nodeCount, 6)
 
-    def testMutateTransformNumberNegativeToDoubleNegative(self):
+    def testNumberTransformNegativeToDoubleNegative(self):
         # Negative to Double Negative
         program = self.createProgram("-2 < 3 --> wait;")
         ast = AbstractSyntaxTree(program)
@@ -153,7 +154,7 @@ class TestMutator(unittest.TestCase):
         condition = cast(RelationalOperator, program.rules[0].condition)
         parentNode = cast(UnaryOperator, condition.leftOperand)
         originalNode = cast(Number, parentNode.operand)
-        mutator.mutateTransformNumber(
+        mutator.mutateNumberTransform(
             (originalNode, parentNode), -3
         )  # UnaryOperator(2) + (-3) = UnaryOperator(UnaryOperator(1))
         self.assertIsInstance(condition.leftOperand, UnaryOperator)
@@ -170,7 +171,7 @@ class TestMutator(unittest.TestCase):
         self.assertEqual(str(condition), "--1 < 3")
         self.assertEqual(condition.leftOperand.evaluate(), 1)
 
-    def testMutateInsertNumberUnaryOperator(self):
+    def testNumberInsertUnaryOperator(self):
         program = self.createProgram("1 < 2 --> wait;")
         ast = AbstractSyntaxTree(program)
         mutator = Mutator(ast)
@@ -185,12 +186,12 @@ class TestMutator(unittest.TestCase):
 
         # Insert a unary operator as the parent of "1" in the expression "1 < 2".
         # After this mutation, the expression will be "-1 < 2" or, RelationalOperator(UnaryOperator(1),2)
-        mutator.mutateInsertNumber(faultLocus, NodeType.UNARY_OPERATOR)
+        mutator.mutateNumberInsert(faultLocus, NodeType.UNARY_OPERATOR)
         # Left operand of the condition is now a UnaryOperand instead of a Number
         self.assertIsInstance(condition.leftOperand, UnaryOperator)
         self.assertEqual(str(condition), "-1 < 2")
 
-    def testMutateInsertNumberUnaryOperatorDoubleNegative(self):
+    def testNumberInsertUnaryOperatorDoubleNegative(self):
         # Set new faultLocus. We are going to insert a UnaryOperator as the parent
         # of the -1 in the expression "-1 < 2". This will create a double negative.
         # The resulting expression will be "--1 < 2"
@@ -205,12 +206,12 @@ class TestMutator(unittest.TestCase):
             condition.leftOperand,
         )
         # faultLocus is (Number(1), UnaryOperator(Number(1)))
-        mutator.mutateInsertNumber(faultLocus, NodeType.UNARY_OPERATOR)
+        mutator.mutateNumberInsert(faultLocus, NodeType.UNARY_OPERATOR)
         self.assertIsInstance(condition.leftOperand, UnaryOperator)
         self.assertEqual(str(condition), "--1 < 2")
         self.assertEqual(ast.nodeCount, 8)
 
-    def testMutateInsertNumberBinaryOperator(self):
+    def testNumberInsertBinaryOperator(self):
         # Set a new faultLocus. Insert a BinaryOperator as as the parent of the "2" in "1 < 2"
         program = self.createProgram("1 < 2 --> wait;")
         ast = AbstractSyntaxTree(program)
@@ -219,7 +220,7 @@ class TestMutator(unittest.TestCase):
         self.assertEqual(ast.nodeCount, 6)
         condition = cast(RelationalOperator, program.rules[0].condition)
         faultLocus = (cast(Number, condition.rightOperand), condition)
-        mutator.mutateInsertNumber(faultLocus, NodeType.BINARY_OPERATOR)
+        mutator.mutateNumberInsert(faultLocus, NodeType.BINARY_OPERATOR)
         self.assertIsInstance(condition.rightOperand, BinaryOperator)
         binOp = cast(BinaryOperator, condition.rightOperand)
         self.assertTrue(
@@ -237,7 +238,7 @@ class TestMutator(unittest.TestCase):
         )
         self.assertEqual(ast.nodeCount, 8)
 
-    def testMutateInsertNumberMemNodeOrDirectedSensorNode(self):
+    def testNumberInsertMemNodeOrDirectedSensorNode(self):
         program = self.createProgram("1 < 2 --> wait;")
         ast = AbstractSyntaxTree(program)
         mutator = Mutator(ast)
@@ -245,7 +246,7 @@ class TestMutator(unittest.TestCase):
         # Set a new faultLocus. Insert a MemNode or DirectedSensorNode (Choice 3)
         condition = cast(RelationalOperator, program.rules[0].condition)
         faultLocus = (cast(Number, condition.leftOperand), condition)
-        mutator.mutateInsertNumber(
+        mutator.mutateNumberInsert(
             faultLocus, random.choice([NodeType.MEMNODE, NodeType.DIRECTED_SENSOR_NODE])
         )
         self.assertTrue(
@@ -256,7 +257,7 @@ class TestMutator(unittest.TestCase):
         self.assertIsInstance(newNode.value, Number)
         self.assertTrue(newNode.value.evaluate() == 1)
 
-    def testMutateReplaceNumber(self):
+    def testNumberReplace(self):
         # Replace the 4 with 2 * 17
         program = self.createProgram("1 + 4 < 2 * 17 mod 12 --> wait;")
         ast = AbstractSyntaxTree(program)
@@ -271,13 +272,13 @@ class TestMutator(unittest.TestCase):
         replacementNode = cast(BinaryOperator, replacementParent.leftOperand)
         originalNode = binaryOperationNode.rightOperand
 
-        mutator.mutateReplaceNumber(
+        mutator.mutateNumberReplace(
             (cast(Number, originalNode), binaryOperationNode),
             cast(ExpressionNode, replacementNode),
         )
         self.assertEqual("1 + 2 * 17 < 2 * 17 mod 12", str(program.rules[0].condition))
 
-    def testMutateReplaceMemNodeDestination(self):
+    def testMemNodeReplaceDestination(self):
         program = self.createProgram("1 = 1 --> mem[0] := 5;")
         ast = AbstractSyntaxTree(program)
         mutator = Mutator(ast)
@@ -288,13 +289,13 @@ class TestMutator(unittest.TestCase):
         # We need a new MemNode to replace it with
         replacement = MemNode(Number(value=2))
 
-        mutator.mutateReplaceMemNode((originalNode, update), replacement)
+        mutator.mutateMemNodeReplace((originalNode, update), replacement)
 
         self.assertIsInstance(update.destination, MemNode)
         update.destination = cast(MemNode, update.destination)
         self.assertEqual(update.destination.value.evaluate(), 2)
 
-    def testMutateReplaceMemNodeFailsIfOnlyOneMemNode(self):
+    def testMemNodeReplaceFailsIfOnlyOneMemNode(self):
         # Program with exactly one MemNode
         program = self.createProgram("1 = 1 --> mem[0] := 5;")
         ast = AbstractSyntaxTree(program)
@@ -304,10 +305,10 @@ class TestMutator(unittest.TestCase):
         originalNode = cast(MemNode, update.destination)
 
         # Do not pass a replacement node. It should return False because it cannot find another MemNode to swap with.
-        result = mutator.mutateReplaceMemNode((originalNode, update))
+        result = mutator.mutateMemNodeReplace((originalNode, update))
         self.assertFalse(result)
 
-    def testMutateReplaceMemNodeSource(self):
+    def testMemNodeReplaceSource(self):
         program = self.createProgram("1 = 1 --> MEMSIZE := mem[3];")
         ast = AbstractSyntaxTree(program)
         mutator = Mutator(ast)
@@ -317,47 +318,47 @@ class TestMutator(unittest.TestCase):
 
         # Replace it with a Number
         replacement = Number(value=42)
-        mutator.mutateReplaceMemNode((originalNode, update), replacement)
+        mutator.mutateMemNodeReplace((originalNode, update), replacement)
 
         self.assertIsInstance(update.source, Number)
         update.source = cast(Number, update.source)
         self.assertEqual(update.source.evaluate(), 42)
 
-    def testMutateInsertMemNodeUnary(self):
+    def testMemNodeInsertUnaryOperator(self):
         program = self.createProgram("1 = mem[0] --> wait;")
         ast = AbstractSyntaxTree(program)
         mutator = Mutator(ast)
         condition = cast(RelationalOperator, program.rules[0].condition)
         originalNode = cast(MemNode, condition.rightOperand)
 
-        mutator.mutateInsertMemNode((originalNode, condition), NodeType.UNARY_OPERATOR)
+        mutator.mutateMemNodeInsert((originalNode, condition), NodeType.UNARY_OPERATOR)
         self.assertIsInstance(condition.rightOperand, UnaryOperator)
         unary = cast(UnaryOperator, condition.rightOperand)
         self.assertIsInstance(unary.operand, MemNode)
 
-    def testMutateInsertMemNodeBinary(self):
+    def testMemNodeInsertBinaryOperator(self):
         program = self.createProgram("1 = mem[0] --> wait;")
         ast = AbstractSyntaxTree(program)
         mutator = Mutator(ast)
         condition = cast(RelationalOperator, program.rules[0].condition)
         originalNode = cast(MemNode, condition.rightOperand)
 
-        mutator.mutateInsertMemNode((originalNode, condition), NodeType.BINARY_OPERATOR)
+        mutator.mutateMemNodeInsert((originalNode, condition), NodeType.BINARY_OPERATOR)
         self.assertIsInstance(condition.rightOperand, BinaryOperator)
 
-    def testMutateInsertMemNodeSensor(self):
+    def testMemNodeInsertDirectedSensorNode(self):
         program = self.createProgram("1 = mem[0] --> wait;")
         ast = AbstractSyntaxTree(program)
         mutator = Mutator(ast)
         condition = cast(RelationalOperator, program.rules[0].condition)
         originalNode = cast(MemNode, condition.rightOperand)
 
-        mutator.mutateInsertMemNode(
+        mutator.mutateMemNodeInsert(
             (originalNode, condition), NodeType.DIRECTED_SENSOR_NODE
         )
         self.assertIsInstance(condition.rightOperand, DirectedSensorNode)
 
-    def testMutateInsertMemNodeAsMemNode(self):
+    def testMemNodeInsertMemNode(self):
         program = self.createProgram("1 = mem[0] --> wait;")
         ast = AbstractSyntaxTree(program)
         mutator = Mutator(ast)
@@ -365,12 +366,12 @@ class TestMutator(unittest.TestCase):
         originalNode = cast(MemNode, condition.rightOperand)
 
         # Insert a MemNode wrapper (Choice 3)
-        mutator.mutateInsertMemNode((originalNode, condition), NodeType.MEMNODE)
+        mutator.mutateMemNodeInsert((originalNode, condition), NodeType.MEMNODE)
         self.assertIsInstance(condition.rightOperand, MemNode)
         outerMem = cast(MemNode, condition.rightOperand)
         self.assertIsInstance(outerMem.value, MemNode)
 
-    def testMutateInsertMemNodeDestination(self):
+    def testMemNodeInsertDestination(self):
         # Start with mem[0] := 5
         program = self.createProgram("1 = 1 --> mem[0] := 5;")
         ast = AbstractSyntaxTree(program)
@@ -380,13 +381,13 @@ class TestMutator(unittest.TestCase):
         originalNode = cast(MemNode, update.destination)
 
         # Do an insertion. Because it's a destination, it MUST force choice 3 and wrap it in a MemNode
-        mutator.mutateInsertMemNode((originalNode, update))
+        mutator.mutateMemNodeInsert((originalNode, update))
 
         self.assertIsInstance(update.destination, MemNode)
         outerMem = cast(MemNode, update.destination)
         self.assertIsInstance(outerMem.value, MemNode)
 
-    def testMutateRemoveRule(self):
+    def testRuleRemove(self):
         program = self.createProgram("1 = 1 --> wait; 2 = 2 --> forward;")
         ast = AbstractSyntaxTree(program)
         mutator = Mutator(ast)
@@ -400,7 +401,7 @@ class TestMutator(unittest.TestCase):
         self.assertEqual(len(program.rules), 1)
         self.assertIs(program.rules[0], rule2)
 
-    def testMutateRemoveRuleFailsIfOnlyOne(self):
+    def testRuleRemoveFailsIfOnlyOne(self):
         program = self.createProgram("1 = 1 --> wait;")
         ast = AbstractSyntaxTree(program)
         mutator = Mutator(ast)
@@ -409,7 +410,7 @@ class TestMutator(unittest.TestCase):
         result = mutator.mutateRemoveRule((rule, program))
         self.assertFalse(result)
 
-    def testMutateSwapRuleWithAction(self):
+    def testRuleSwapWithAction(self):
         program = self.createProgram("1 = 1 --> mem[0] := 1 mem[1] := 2 wait;")
         ast = AbstractSyntaxTree(program)
         mutator = Mutator(ast)
@@ -425,7 +426,7 @@ class TestMutator(unittest.TestCase):
         self.assertIs(rule.commands[0], cmd2)
         self.assertIs(rule.commands[1], cmd1)
 
-    def testMutateReplaceRule(self):
+    def testRuleReplace(self):
         program = self.createProgram("1 = 1 --> wait; 2 = 2 --> forward;")
         ast = AbstractSyntaxTree(program)
         mutator = Mutator(ast)
@@ -438,7 +439,7 @@ class TestMutator(unittest.TestCase):
         self.assertIsNot(program.rules[0], rule1)
         self.assertEqual(str(program.rules[0]), str(rule2))  # Must be a copy of rule2
 
-    def testMutateDuplicateRuleWithAction(self):
+    def testRuleDuplicateWithAction(self):
         program = self.createProgram("1 = 1 --> mem[0] := 5 wait;")
         ast = AbstractSyntaxTree(program)
         mutator = Mutator(ast)
@@ -452,7 +453,7 @@ class TestMutator(unittest.TestCase):
         self.assertIsInstance(rule.commands[1], Update)
         self.assertIsInstance(rule.commands[2], Action)
 
-    def testMutateSwapBinaryOperator(self):
+    def testBinaryOperatorSwap(self):
         program = self.createProgram("1 < 5 - 3 --> wait;")
         ast = AbstractSyntaxTree(program)
         mutator = Mutator(ast)
@@ -462,27 +463,27 @@ class TestMutator(unittest.TestCase):
         left = binOp.leftOperand
         right = binOp.rightOperand
 
-        result = mutator.mutateSwapBinaryOperator((binOp, condition))
+        result = mutator.mutateBinaryOperatorSwap((binOp, condition))
 
         self.assertTrue(result)
         self.assertIs(binOp.leftOperand, right)
         self.assertIs(binOp.rightOperand, left)
         self.assertEqual(str(binOp), "3 - 5")
 
-    def testMutateTransformBinaryOperator(self):
+    def testBinaryOperatorTransform(self):
         program = self.createProgram("1 < 5 + 3 --> wait;")
         ast = AbstractSyntaxTree(program)
         mutator = Mutator(ast)
         condition = cast(RelationalOperator, program.rules[0].condition)
         binOp = cast(BinaryOperator, condition.rightOperand)
 
-        result = mutator.mutateTransformBinaryOperator((binOp, condition))
+        result = mutator.mutateBinaryOperatorTransform((binOp, condition))
 
         self.assertTrue(result)
         self.assertNotEqual(binOp.operator.lexeme, "+")
         self.assertIn(binOp.operator.lexeme, ["-", "*", "/", "mod"])
 
-    def testMutateSwapRelationalOperator(self):
+    def testRelationalOperatorSwap(self):
         program = self.createProgram("1 < 3 --> wait;")
         ast = AbstractSyntaxTree(program)
         mutator = Mutator(ast)
@@ -491,23 +492,165 @@ class TestMutator(unittest.TestCase):
         left = condition.leftOperand
         right = condition.rightOperand
 
-        mutator.mutateSwapRelationalOperator(condition)
+        mutator.mutateRelationalOperatorSwap((condition, program.rules[0]))
 
         self.assertIs(condition.leftOperand, right)
         self.assertIs(condition.rightOperand, left)
         self.assertEqual(str(condition), "3 < 1")
 
-    def testMutateSwapLogicalOperator(self):
+    def testRelationalOperatorReplace(self):
+        program = self.createProgram("1 < 3 or 4 = 4 --> wait;")
+        ast = AbstractSyntaxTree(program)
+        mutator = Mutator(ast)
+        rule = program.rules[0]
+        rootOp = cast(LogicalOperator, rule.condition)
+        relOp = cast(RelationalOperator, rootOp.leftOperand)
+
+        result = mutator.mutateRelationalOperatorReplace((relOp, rootOp))
+        self.assertTrue(result)
+        self.assertIsNot(rootOp.leftOperand, relOp)
+        self.assertIsInstance(rootOp.leftOperand, BooleanOperator)
+
+    def testRelationalOperatorTransform(self):
+        program = self.createProgram("1 < 3 --> wait;")
+        ast = AbstractSyntaxTree(program)
+        mutator = Mutator(ast)
+        condition = cast(RelationalOperator, program.rules[0].condition)
+
+        self.assertEqual(condition.operator.tokenType, TOKENS.T_LESS)
+
+        result = mutator.mutateRelationalOperatorTransform(
+            (condition, program.rules[0])
+        )
+        self.assertTrue(result)
+        self.assertNotEqual(condition.operator.tokenType, TOKENS.T_LESS)
+        self.assertIn(condition.operator.tokenType, SET_RELOPS)
+
+    def testRelationalOperatorInsert(self):
+        program = self.createProgram("1 < 3 or 4 = 4 --> wait;")
+        ast = AbstractSyntaxTree(program)
+        mutator = Mutator(ast)
+        rule = program.rules[0]
+        rootOp = cast(LogicalOperator, rule.condition)
+        relOp = cast(RelationalOperator, rootOp.leftOperand)
+
+        result = mutator.mutateRelationalOperatorInsert((relOp, rootOp))
+        self.assertTrue(result)
+        self.assertIsInstance(rootOp.leftOperand, LogicalOperator)
+        newLogical = cast(LogicalOperator, rootOp.leftOperand)
+        self.assertTrue(
+            newLogical.leftOperand is relOp or newLogical.rightOperand is relOp
+        )
+
+    def testLogicalOperatorRemove(self):
         program = self.createProgram("1 < 2 and 3 < 4 --> wait;")
         ast = AbstractSyntaxTree(program)
         mutator = Mutator(ast)
-        condition = cast(LogicalOperator, program.rules[0].condition)
+        rule = program.rules[0]
+        condition = cast(LogicalOperator, rule.condition)
 
         left = condition.leftOperand
         right = condition.rightOperand
 
-        mutator.mutateSwapLogicalOperator(condition)
+        result = mutator.mutateLogicalOperatorRemove((condition, rule))
+
+        self.assertTrue(result)
+        self.assertTrue(rule.condition is left or rule.condition is right)
+        self.assertNotIsInstance(rule.condition, LogicalOperator)
+
+    def testLogicalOperatorRemoveNested(self):
+        program = self.createProgram("1 < 2 and 3 < 4 or 5 < 6 --> wait;")
+        ast = AbstractSyntaxTree(program)
+        mutator = Mutator(ast)
+        rule = program.rules[0]
+
+        rootOp = cast(LogicalOperator, rule.condition)
+        nestedOp = cast(LogicalOperator, rootOp.leftOperand)
+
+        left = nestedOp.leftOperand
+        right = nestedOp.rightOperand
+
+        result = mutator.mutateLogicalOperatorRemove((nestedOp, rootOp))
+
+        self.assertTrue(result)
+        self.assertTrue(rootOp.leftOperand is left or rootOp.leftOperand is right)
+
+    def testLogicalOperatorSwap(self):
+        program = self.createProgram("1 < 2 and 3 < 4 --> wait;")
+        ast = AbstractSyntaxTree(program)
+        mutator = Mutator(ast)
+        rule = program.rules[0]
+        condition = cast(LogicalOperator, rule.condition)
+
+        left = condition.leftOperand
+        right = condition.rightOperand
+
+        result = mutator.mutateLogicalOperatorSwap((condition, rule))
+
+        self.assertTrue(result)
+        self.assertIs(condition.leftOperand, right)
+        self.assertIs(condition.rightOperand, left)
         self.assertEqual(str(condition), "3 < 4 and 1 < 2")
+
+    def testLogicalOperatorReplace(self):
+        program = self.createProgram("1 < 2 and 3 < 4 or 5 < 6 --> wait;")
+        ast = AbstractSyntaxTree(program)
+        mutator = Mutator(ast)
+        rule = program.rules[0]
+
+        rootOp = cast(LogicalOperator, rule.condition)
+        nestedOp = cast(LogicalOperator, rootOp.leftOperand)
+
+        result = mutator.mutateLogicalOperatorReplace((nestedOp, rootOp))
+
+        self.assertTrue(result)
+        self.assertIsNot(rootOp.leftOperand, rootOp)
+        self.assertIsInstance(rootOp.leftOperand, LogicalOperator)
+        replacedOp = cast(LogicalOperator, rootOp.leftOperand)
+        # Should be a copy of rootOp
+        self.assertEqual(replacedOp.operator.tokenType, TOKENS.T_OR)
+
+    def testLogicalOperatorReplaceFailsIfOnlyOne(self):
+        program = self.createProgram("1 < 2 and 3 < 4 --> wait;")
+        ast = AbstractSyntaxTree(program)
+        mutator = Mutator(ast)
+        rule = program.rules[0]
+        condition = cast(LogicalOperator, rule.condition)
+
+        result = mutator.mutateLogicalOperatorReplace((condition, rule))
+        self.assertFalse(result)
+
+    def testLogicalOperatorTransform(self):
+        program = self.createProgram("1 < 2 and 3 < 4 --> wait;")
+        ast = AbstractSyntaxTree(program)
+        mutator = Mutator(ast)
+        rule = program.rules[0]
+        condition = cast(LogicalOperator, rule.condition)
+
+        self.assertEqual(condition.operator.tokenType, TOKENS.T_AND)
+
+        result = mutator.mutateLogicalOperatorTransform((condition, rule))
+
+        self.assertTrue(result)
+        self.assertEqual(condition.operator.tokenType, TOKENS.T_OR)
+        self.assertEqual(condition.operator.lexeme, "or")
+
+    def testLogicalOperatorInsert(self):
+        program = self.createProgram("1 < 2 and 3 < 4 or 5 < 6 --> wait;")
+        ast = AbstractSyntaxTree(program)
+        mutator = Mutator(ast)
+        rule = program.rules[0]
+
+        rootOp = cast(LogicalOperator, rule.condition)
+        nestedOp = cast(LogicalOperator, rootOp.leftOperand)
+
+        result = mutator.mutateLogicalOperatorInsert((nestedOp, rootOp))
+        self.assertTrue(result)
+        self.assertIsInstance(rootOp.leftOperand, LogicalOperator)
+        insertedOp = cast(LogicalOperator, rootOp.leftOperand)
+        self.assertTrue(
+            insertedOp.leftOperand is nestedOp or insertedOp.rightOperand is nestedOp
+        )
 
     def testProgramReplaceChild(self):
         program = self.createProgram("1 = 1 --> wait;")
@@ -549,7 +692,7 @@ class TestMutator(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             rule.replaceChild(missingCommand, newCommand)
 
-    def testUnaryReplaceChildDoubleNegative(self):
+    def testUnaryOperatorReplaceChildDoubleNegative(self):
         # Replacing the child of a UnaryOperator with another UnaryOperator should result in a double negative.
         program = self.createProgram("-1 = -1 --> wait;")
         ast = AbstractSyntaxTree(program)
@@ -569,7 +712,7 @@ class TestMutator(unittest.TestCase):
         self.assertEqual(str(child), "-5")
         self.assertEqual(child.evaluate(), -5)
 
-    def testMutateUpdateRemove(self):
+    def testUpdateRemove(self):
         program = self.createProgram("1 = 1 --> mem[0] := 1 wait;")
         ast = AbstractSyntaxTree(program)
         mutator = Mutator(ast)
@@ -584,7 +727,7 @@ class TestMutator(unittest.TestCase):
         self.assertEqual(len(rule.commands), 1)
         self.assertIs(rule.commands[0], action)
 
-    def testMutateUpdateRemoveFailsIfOnlyCommand(self):
+    def testUpdateRemoveFailsIfOnlyCommand(self):
         program = self.createProgram("1 = 1 --> mem[0] := 1;")
         ast = AbstractSyntaxTree(program)
         mutator = Mutator(ast)
@@ -598,7 +741,7 @@ class TestMutator(unittest.TestCase):
         self.assertEqual(len(rule.commands), 1)
         self.assertIs(rule.commands[0], update)
 
-    def testMutateUpdateSwap(self):
+    def testUpdateSwap(self):
         program = self.createProgram("1 = 1 --> mem[0] := mem[1];")
         ast = AbstractSyntaxTree(program)
         mutator = Mutator(ast)
@@ -615,7 +758,7 @@ class TestMutator(unittest.TestCase):
         self.assertEqual(dest.value.evaluate(), 1)
         self.assertEqual(src.value.evaluate(), 0)
 
-    def testMutateUpdateSwapFailsIfNotBothMemNodes(self):
+    def testUpdateSwapFailsIfNotBothMemNodes(self):
         program = self.createProgram("1 = 1 --> mem[0] := 5;")
         ast = AbstractSyntaxTree(program)
         mutator = Mutator(ast)
@@ -629,7 +772,7 @@ class TestMutator(unittest.TestCase):
         self.assertEqual(dest.value.evaluate(), 0)
         self.assertIsInstance(update.source, Number)
 
-    def testMutateUpdateReplace(self):
+    def testUpdateReplace(self):
         program = self.createProgram("1 = 1 --> mem[0] := 1 mem[1] := 2;")
         ast = AbstractSyntaxTree(program)
         mutator = Mutator(ast)
@@ -646,7 +789,7 @@ class TestMutator(unittest.TestCase):
         self.assertIsNot(replaced_command, update2)  # Needs to be a copy!
         self.assertEqual(str(replaced_command), str(update2))
 
-    def testMutateUpdateReplaceFailsIfOnlyOneUpdate(self):
+    def testUpdateReplaceFailsIfOnlyOneUpdate(self):
         program = self.createProgram("1 = 1 --> mem[0] := 1;")
         ast = AbstractSyntaxTree(program)
         mutator = Mutator(ast)
@@ -657,3 +800,31 @@ class TestMutator(unittest.TestCase):
 
         self.assertFalse(result)
         self.assertIs(rule.commands[0], update)
+
+    def testActionTransformToServe(self):
+        program = self.createProgram("1 = 1 --> wait;")
+        ast = AbstractSyntaxTree(program)
+        mutator = Mutator(ast)
+        rule = program.rules[0]
+        action = cast(Action, rule.commands[0])
+
+        # Transform to a serve action
+        mutator.mutateActionTransform((action, rule), TOKENS.T_SERVE)
+        self.assertIsInstance(rule.commands[0], ServeAction)
+        serve = cast(ServeAction, rule.commands[0])
+        self.assertIsInstance(serve.value, ExpressionNode)
+        self.assertEqual(serve.actionType.lexeme, "serve")
+
+    def testActionTransformFromServe(self):
+        program = self.createProgram("1 = 1 --> serve[10];")
+        ast = AbstractSyntaxTree(program)
+        mutator = Mutator(ast)
+        rule = program.rules[0]
+        action = cast(Action, rule.commands[0])
+
+        # Transform away from a serve action
+        mutator.mutateActionTransform((action, rule), TOKENS.T_FORWARD)
+        self.assertIsInstance(rule.commands[0], Action)
+        self.assertNotIsInstance(rule.commands[0], ServeAction)
+        newAction = cast(Action, rule.commands[0])
+        self.assertEqual(newAction.actionType.lexeme, "forward")

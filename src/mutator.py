@@ -19,6 +19,7 @@ from abstractSyntaxTree import (
     LogicalOperator,
     Update,
     Action,
+    Command,
     Rule,
 )
 
@@ -30,6 +31,13 @@ class Mutations(Enum):
     TRANSFORM = 4
     INSERT = 5
     DUPLICATE = 6
+
+
+class NodeType(Enum):
+    UNARY_OPERATOR = 1
+    BINARY_OPERATOR = 2
+    MEMNODE = 3
+    DIRECTED_SENSOR_NODE = 4
 
 
 class Mutator:
@@ -146,49 +154,56 @@ class Mutator:
         """
 
     def mutate(self, mutations: int) -> bool:
-        if not self.ast.rootNode:
-            raise RuntimeError("AST was not setup in init for Mutator")
 
-        locus = self.generateFaultLocus()
-        match locus[0]:
-            case Program():
-                locus = cast(tuple[Program, AbstractSyntaxTree], locus)
-                return self.programFaultInjector(locus)
-            case Rule():
-                locus = cast(tuple[Rule, Program], locus)
-                return self.ruleFaultInjector(locus)
-            case Update():
-                raise NotImplementedError("updateFaultInjector() not implemented.")
-            case Action():
-                raise NotImplementedError("actionFaultInjector() not implemented.")
-            case LogicalOperator():
-                locus = cast(tuple[LogicalOperator, ASTNode], locus)
-                self.logicalOperatorFaultInjector(locus)
-                return True
-            case RelationalOperator():
-                locus = cast(tuple[RelationalOperator, ASTNode], locus)
-                self.relationalOperatorFaultInjector(locus)
-                return True
-            case BinaryOperator():
-                locus = cast(tuple[BinaryOperator, ASTNode], locus)
-                self.binaryOperatorFaultInjector(locus)
-                return True
-            case UnaryOperator():
-                locus = cast(tuple[UnaryOperator, ASTNode], locus)
-                self.unaryOperatorFaultInjector(locus)
-                return True
-            case Number():
-                locus = cast(tuple[Number, ExpressionNode], locus)
-                return self.numberFaultInjector(locus)
-            case MemNode():
-                locus = cast(tuple[MemNode, Update | ExpressionNode], locus)
-                return self.memNodeFaultInjector(locus)
-            case SensorNode():
-                locus = cast(tuple[SensorNode, ASTNode], locus)
-                return self.sensorFaultInjector(locus)
-            case _:
-                print("Got skunked")
-                return False
+        mutationsApplied = 0
+        attempts = 0
+        maxAttempts = mutations * 100
+
+        while mutationsApplied < mutations and attempts < maxAttempts:
+            attempts += 1
+            locus = self.generateFaultLocus()
+            success = False
+
+            match locus[0]:
+                case Program():
+                    locus = cast(tuple[Program, AbstractSyntaxTree], locus)
+                    success = self.programFaultInjector(locus)
+                case Rule():
+                    locus = cast(tuple[Rule, Program], locus)
+                    success = self.ruleFaultInjector(locus)
+                case Update():
+                    raise NotImplementedError("updateFaultInjector() not implemented.")
+                case Action():
+                    raise NotImplementedError("actionFaultInjector() not implemented.")
+                case LogicalOperator():
+                    locus = cast(tuple[LogicalOperator, ASTNode], locus)
+                    success = self.logicalOperatorFaultInjector(locus)
+                case RelationalOperator():
+                    locus = cast(tuple[RelationalOperator, ASTNode], locus)
+                    success = self.relationalOperatorFaultInjector(locus)
+                case BinaryOperator():
+                    locus = cast(tuple[BinaryOperator, ASTNode], locus)
+                    success = self.binaryOperatorFaultInjector(locus)
+                case UnaryOperator():
+                    locus = cast(tuple[UnaryOperator, ASTNode], locus)
+                    success = self.unaryOperatorFaultInjector(locus)
+                case Number():
+                    locus = cast(tuple[Number, ExpressionNode], locus)
+                    success = self.numberFaultInjector(locus)
+                case MemNode():
+                    locus = cast(tuple[MemNode, Update | ExpressionNode], locus)
+                    success = self.memNodeFaultInjector(locus)
+                case SensorNode():
+                    locus = cast(tuple[SensorNode, ASTNode], locus)
+                    success = self.sensorFaultInjector(locus)
+                case _:
+                    print("Got skunked")
+                    success = False
+
+            if success:
+                mutationsApplied += 1
+
+        return mutationsApplied == mutations
 
     """
         <PROGRAM>
@@ -211,8 +226,6 @@ class Mutator:
     def programFaultInjector(
         self, faultLocus: tuple[Program, AbstractSyntaxTree]
     ) -> bool:
-        if not self.ast.rootNode:
-            raise RuntimeError("AST was not setup in init for Mutator")
 
         choice = random.choice([Mutations.SWAP, Mutations.DUPLICATE])
 
@@ -220,30 +233,35 @@ class Mutator:
             case Mutations.SWAP:
                 return self.mutateSwapProgram(faultLocus)
             case Mutations.DUPLICATE:
-                pass
+                return self.mutateDuplicateProgram(faultLocus)
 
         return False
 
-    def mutateSwapProgram(self, faultLocus: tuple[Program, AbstractSyntaxTree]) -> bool:
-        if not self.ast.rootNode:
-            raise RuntimeError("AST was not setup in init for Mutator")
+    def mutateSwapProgram(
+        self, faultLocus: tuple[Program, AbstractSyntaxTree], target: Rule | None = None
+    ) -> bool:
 
         originalNode = faultLocus[0]
+        if not target:
+            candidates = self.ast.getNodesByType(Rule)
+            if not candidates:
+                # There were no Rule nodes in the AST.
+                # This shouldn't happen, so we will raise exception instead of return False
+                raise RuntimeError(f"{originalNode} has no rules!")
 
-        if len(originalNode.rules) > 2:
+            target = cast(Rule, random.choice(candidates).copyNode())
+
+        length = len(originalNode.rules)
+        if length < 2:
             # A swap can't be performed if we only have one rule.
             return False
-
-        targets = random.sample(originalNode.rules, 2)
-        originalNode.swapChildren(targets[0], targets[1])
+        location = random.randint(0, length)
+        originalNode.insertChild(target, location)
         return True
 
     def mutateDuplicateProgram(
         self, faultLocus: tuple[Program, AbstractSyntaxTree]
     ) -> bool:
-        if not self.ast.rootNode:
-            raise RuntimeError("AST was not setup in init for Mutator")
-
         originalNode = faultLocus[0]
 
         candidates = self.ast.getNodesByType(Rule)
@@ -252,7 +270,7 @@ class Mutator:
             # This shouldn't happen, so we will raise exception instead of return False
             raise RuntimeError(f"{originalNode} has no rules!")
         target = random.choice(candidates)
-        target = cast(Update, target.copyNode())
+        target = target.copyNode()
         length = len(originalNode.rules)
         location = random.randint(0, length)
         originalNode.insertChild(target, location)
@@ -282,12 +300,11 @@ class Mutator:
         and then attach the new program as a child of the original program.
 
         A duplicate can be performed by randomly selecting an <Update> from some other location in the AST and inserting it into
-        a random location in the command block, as long as it precedes the Action (if present).
+        a random location in the command block, as long as it precedes the Action (if present). ¿Should I allow an Action to be selected as well?
+        ¿If I do, should I automatically put it at the end?
     """
 
     def ruleFaultInjector(self, faultLocus: tuple[Rule, Program]) -> bool:
-        if not self.ast.rootNode:
-            raise RuntimeError("AST was not setup in init for Mutator")
 
         choice = random.choice(
             [Mutations.REMOVE, Mutations.SWAP, Mutations.REPLACE, Mutations.DUPLICATE]
@@ -307,8 +324,6 @@ class Mutator:
                 )
 
     def mutateRemoveRule(self, faultLocus: tuple[Rule, Program]) -> bool:
-        if not self.ast.rootNode:
-            raise RuntimeError("AST was not setup in init for Mutator")
         originalNode = faultLocus[0]
         parentNode = faultLocus[1]
 
@@ -320,8 +335,6 @@ class Mutator:
         return True
 
     def mutateSwapRule(self, faultLocus: tuple[Rule, Program]) -> bool:
-        if not self.ast.rootNode:
-            raise RuntimeError("AST was not setup in init for Mutator")
         originalNode = faultLocus[0]
 
         if isinstance(originalNode.commands[-1], Action):
@@ -342,8 +355,6 @@ class Mutator:
             return False
 
     def mutateReplaceRule(self, faultLocus: tuple[Rule, Program]) -> bool:
-        if not self.ast.rootNode:
-            raise RuntimeError("AST was not setup in init for Mutator")
         originalNode = faultLocus[0]
         parentNode = faultLocus[1]
 
@@ -356,28 +367,121 @@ class Mutator:
         parentNode.replaceChild(originalNode, otherRule.copyNode())
         return True
 
-    def mutateDuplicateRule(self, faultLocus: tuple[Rule, Program]) -> bool:
-        if not self.ast.rootNode:
-            raise RuntimeError("AST was not setup in init for Mutator")
-
+    def mutateDuplicateRule(
+        self, faultLocus: tuple[Rule, Program], target: Command | None = None
+    ) -> bool:
         originalNode = faultLocus[0]
+        parentNode = faultLocus[1]
 
-        candidates = self.ast.getNodesByType(Update)
-        if not candidates:
-            # There were no Update nodes in the AST to duplicate
-            return False
-        target = random.choice(candidates)
-        target = cast(Update, target.copyNode())
-        length = len(originalNode.commands)
-        if type(originalNode.commands[-1]) is Action:
-            location = random.randint(0, length - 1)
+        candidates = []
+        if not target:
+            candidates = self.ast.getNodesByType(Command)
+            target = random.choice(candidates)
+
+        hasAction = isinstance(originalNode.commands[-1], Action)
+
+        if isinstance(target, Action):
+            if hasAction:
+                # A rule can only have one Action
+                return False
+            location = len(originalNode.commands)
         else:
-            location = random.randint(0, length)
-        originalNode.insertChild(target, location)
+            length = len(originalNode.commands)
+            if hasAction:
+                location = random.randint(0, length - 1)
+            else:
+                location = random.randint(0, length)
+
+        originalNode.insertChild(target.copyNode(), location)
         return True
 
     """
         </RULE>
+    """
+
+    """
+        <UPDATE>
+
+        There are 3 valid mutation types for an Update - Remove, Swap, and Replace.
+
+        An Update may be removed, as long as the parent Rule has at least one other Command.
+
+        An Update may have the destination and source swapped, but only if both are MemNodes.
+
+        An Update may be replaced. Randomly select a different Update from elsewhere in the AST and take the place of this Update.
+    """
+
+    def updateFaultInjector(self, faultLocus: tuple[Update, Rule]) -> bool:
+
+        choice = random.choice([Mutations.REMOVE, Mutations.SWAP, Mutations.REPLACE])
+
+        match choice:
+            case Mutations.REMOVE:
+                return self.mutateUpdateRemove(faultLocus)
+            case Mutations.SWAP:
+                return self.mutateUpdateSwap(faultLocus)
+            case Mutations.REPLACE:
+                return self.mutateUpdateReplace(faultLocus)
+            case _:
+                raise NotImplementedError(
+                    f"Choice {choice} for updateFaultInjector() not implemented."
+                )
+
+        return False
+
+    def mutateUpdateRemove(self, faultLocus: tuple[Update, Rule]) -> bool:
+        originalNode = faultLocus[0]
+        parentNode = faultLocus[1]
+
+        length = len(parentNode.commands)
+        if length == 1:
+            # We can't have a rule with no commands, this mutation fails.
+            return False
+        parentNode.removeChild(originalNode)
+        return True
+
+    def mutateUpdateSwap(self, faultLocus: tuple[Update, Rule]) -> bool:
+        originalNode = faultLocus[0]
+        parentNode = faultLocus[1]
+
+        if not isinstance(originalNode.destination, MemNode) or not isinstance(
+            originalNode.source, MemNode
+        ):
+            # We can only swap if both the destination and the source are MemNodes, as we must end up with a MemNode as the destination.
+            return False
+
+        originalNode.swapChildren()
+        return True
+
+    def mutateUpdateReplace(self, faultLocus: tuple[Update, Rule]) -> bool:
+        originalNode = faultLocus[0]
+        parentNode = faultLocus[1]
+
+        candidates = [
+            update
+            for update in self.ast.getNodesByType(Update)
+            if update is not originalNode
+        ]
+        if not candidates:
+            # No valid candidates to replace me, so this mutation fails.
+            return False
+        candidate = random.choice(candidates).copyNode()
+        parentNode.replaceChild(originalNode, candidate)
+        return True
+
+    """
+        </UPDATE>
+    """
+
+    """
+        <ACTION>
+        There are 3 valid mutations for an Action node - Remove, Replace, and Transform.
+
+        An Action node may be removed, so long as the Rule has at least one other Command
+
+    """
+    """
+        </ACTION
     """
 
     """
@@ -483,22 +587,27 @@ class Mutator:
         return True
 
     def mutateInsertNumber(
-        self, faultLocus: tuple[Number, ASTNode], insertType: int | None = None
+        self, faultLocus: tuple[Number, ASTNode], insertType: NodeType | None = None
     ) -> bool:
 
         originalNode = faultLocus[0]
         parentNode = faultLocus[1]
         choice = (
             random.choice(
-                ["UnaryOperator", "BinaryOperator", "MemNodeOrDirectedSensorNode"]
+                [
+                    NodeType.UNARY_OPERATOR,
+                    NodeType.BINARY_OPERATOR,
+                    NodeType.MEMNODE,
+                    NodeType.DIRECTED_SENSOR_NODE,
+                ]
             )
             if not insertType
             else insertType
         )
         match choice:
-            case "UnaryOperator" | 1:
+            case NodeType.UNARY_OPERATOR:
                 mutation = UnaryOperator(TokenLexeme(TOKENS.T_MINUS, "-"), originalNode)
-            case "BinaryOperator" | 2:
+            case NodeType.BINARY_OPERATOR:
                 opChoice = random.choice(
                     [
                         TOKENS.T_MINUS,
@@ -535,7 +644,7 @@ class Mutator:
                     mutation = BinaryOperator(
                         otherExpression, TokenLexeme(opChoice, opLexeme), originalNode
                     )
-            case "MemNodeOrDirectedSensorNode" | 3:
+            case NodeType.MEMNODE | NodeType.DIRECTED_SENSOR_NODE:
                 node_choice = random.choice(
                     [TOKENS.T_MEM, TOKENS.T_AHEAD, TOKENS.T_NEARBY, TOKENS.T_RANDOM]
                 )
@@ -617,8 +726,6 @@ class Mutator:
     def mutateRemoveBinaryOperator(
         self, faultLocus: tuple[BinaryOperator, ASTNode]
     ) -> bool:
-        if not self.ast.rootNode:
-            raise RuntimeError("AST was not setup in init for Mutator")
         originalNode = faultLocus[0]
         parentNode = faultLocus[1]
         choice = random.choice(["left", "right"])
@@ -639,14 +746,12 @@ class Mutator:
         if not self.ast.rootNode:
             raise RuntimeError("AST was not setup in init for Mutator")
         originalNode = faultLocus[0]
-        originalNode.swapChildren(originalNode.leftOperand, originalNode.rightOperand)
+        originalNode.swapChildren()
         return True
 
     def mutateReplaceBinaryOperator(
         self, faultLocus: tuple[BinaryOperator, ASTNode]
     ) -> bool:
-        if not self.ast.rootNode:
-            raise RuntimeError("AST was not setup in init for Mutator")
         originalNode = faultLocus[0]
         parentNode = faultLocus[1]
 
@@ -660,8 +765,6 @@ class Mutator:
     def mutateTransformBinaryOperator(
         self, faultLocus: tuple[BinaryOperator, ASTNode]
     ) -> bool:
-        if not self.ast.rootNode:
-            raise RuntimeError("AST was not setup in init for Mutator")
         originalNode = faultLocus[0]
 
         choices = ["+", "-", "*", "/", "mod"]
@@ -699,7 +802,7 @@ class Mutator:
         self, faultLocus: tuple[LogicalOperator, ASTNode]
     ) -> None:
         originalNode = faultLocus[0]
-        parentNode = faultLocus[1]
+
         choice = random.choice([Mutations.SWAP])
         match choice:
             case Mutations.SWAP:
@@ -752,7 +855,7 @@ class Mutator:
     ) -> bool:
         originalNode = faultLocus[0]
         parentNode = faultLocus[1]
-        # We allow Insert (5) on Update destinations as well, handled securely in mutateInsertMemNode
+
         choice = (
             faultType
             if faultType is not None
@@ -799,26 +902,31 @@ class Mutator:
         return True
 
     def mutateInsertMemNode(
-        self, faultLocus: tuple[MemNode, ASTNode], insertType: int | None = None
+        self, faultLocus: tuple[MemNode, ASTNode], insertType: NodeType | None = None
     ) -> bool:
-        if not self.ast.rootNode:
-            raise RuntimeError("AST was not setup in init for Mutator")
         originalNode = faultLocus[0]
         parentNode = faultLocus[1]
 
         # If the MemNode is an Update destination, the only valid structural insertion is another MemNode
         if isinstance(parentNode, Update) and originalNode is parentNode.destination:
-            choice = 3
+            choice = NodeType.MEMNODE
         else:
             choice = (
-                insertType if insertType is not None else random.choice([0, 1, 2, 3])
+                insertType
+                if insertType is not None
+                else random.choice(
+                    [
+                        NodeType.UNARY_OPERATOR,
+                        NodeType.BINARY_OPERATOR,
+                        NodeType.DIRECTED_SENSOR_NODE,
+                        NodeType.MEMNODE,
+                    ]
+                )
             )
         match choice:
-            case 0:
-                # UnaryOperator
+            case NodeType.UNARY_OPERATOR:
                 mutation = UnaryOperator(TokenLexeme(TOKENS.T_MINUS, "-"), originalNode)
-            case 1:
-                # BinaryOperator
+            case NodeType.BINARY_OPERATOR:
                 opChoice = random.choice(
                     [
                         TOKENS.T_MINUS,
@@ -828,7 +936,7 @@ class Mutator:
                         TOKENS.T_MOD,
                     ]
                 )
-                side = random.choice(["left", "right"])
+
                 opLexeme = Mutator.operatorMap.get(opChoice) or ""
                 if not opLexeme:
                     raise RuntimeError(
@@ -845,7 +953,8 @@ class Mutator:
                 otherExpression = cast(
                     ExpressionNode, random.choice(candidates).copyNode()
                 )
-                if side == "left":
+                side = random.choice([0, 1])
+                if side == 0:
                     mutation = BinaryOperator(
                         originalNode, TokenLexeme(opChoice, opLexeme), otherExpression
                     )
@@ -853,16 +962,14 @@ class Mutator:
                     mutation = BinaryOperator(
                         otherExpression, TokenLexeme(opChoice, opLexeme), originalNode
                     )
-            case 2:
-                # DirectedSensorNode
+            case NodeType.DIRECTED_SENSOR_NODE:
                 choice = random.choice(
                     [TOKENS.T_AHEAD, TOKENS.T_NEARBY, TOKENS.T_RANDOM]
                 )
                 lexeme = Mutator.operatorMap.get(choice) or ""
                 token = Token(choice, lexeme, 0, 0)
                 mutation = DirectedSensorNode(token, originalNode)
-            case 3:
-                # MemNode (Pointer / Indirect Addressing)
+            case NodeType.MEMNODE:
                 mutation = MemNode(originalNode)
             case _:
                 raise RuntimeError("This shouldn't happen.")

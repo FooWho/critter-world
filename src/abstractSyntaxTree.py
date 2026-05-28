@@ -126,7 +126,7 @@ class Program(ASTNode):
         child = cast(Rule, child)
         self.rules.insert(location, child)
         child.ast = self.ast
-        self.nodeCount += countNodes(child)
+        self.ast.nodeCount += countNodes(child)
 
 
 class ExpressionNode(ASTNode):
@@ -170,6 +170,11 @@ class BooleanOperator(ASTNode):
         newChild.ast = self.ast
         self.ast.nodeCount += countNodes(newChild) - countNodes(oldChild)
 
+    def swapChildren(self) -> None:
+        tmp = self.leftOperand
+        self.leftOperand = self.rightOperand
+        self.rightOperand = tmp
+
 
 class Rule(ASTNode):
     _children = ("condition", "commands")
@@ -194,7 +199,10 @@ class Rule(ASTNode):
             replaced = False
             for i, cmd in enumerate(self.commands):
                 if cmd is oldChild:
-                    if type(newChild) is Action and oldChild is not self.commands[-1]:
+                    if (
+                        isinstance(newChild, Action)
+                        and oldChild is not self.commands[-1]
+                    ):
                         raise RuntimeError("Action must be final Command")
                     self.commands[i] = newChild
                     replaced = True
@@ -211,7 +219,7 @@ class Rule(ASTNode):
         self.ast.nodeCount += countNodes(newChild) - countNodes(oldChild)
 
     def swapChildren(self, firstChild: Command, secondChild: Command) -> None:
-        if type(firstChild) is Action or type(secondChild) is Action:
+        if isinstance(firstChild, Action) or isinstance(secondChild, Action):
             raise RuntimeError(f"Unable to swap {firstChild} and {secondChild}.")
 
         firstIndex = -1
@@ -233,6 +241,16 @@ class Rule(ASTNode):
         self.commands.insert(location, newChild)
         newChild.ast = self.ast
         self.ast.nodeCount += countNodes(newChild)
+
+    def removeChild(self, child: Command) -> None:
+        if len(self.commands) == 1:
+            raise RuntimeError(f"Unable to remove {child} for {self}.")
+        for i, cmd in enumerate(self.commands):
+            if cmd is child:
+                del self.commands[i]
+                self.ast.nodeCount -= countNodes(child)
+                return
+        raise RuntimeError(f"Unable to remove {child} for {self}.")
 
 
 class Command(ASTNode):
@@ -266,6 +284,18 @@ class Update(Command):
             )
         newChild.ast = self.ast
         self.ast.nodeCount += countNodes(newChild) - countNodes(oldChild)
+
+    def swapChildren(self) -> None:
+        if not isinstance(self.destination, MemNode) or not isinstance(
+            self.source, MemNode
+        ):
+            raise RuntimeError(
+                f"Unable to swap {self.destination} and {self.source} for {self}."
+            )
+
+        tmp = self.source
+        self.source = self.destination
+        self.destination = tmp
 
 
 class Action(Command):
@@ -485,21 +515,10 @@ class BinaryOperator(ExpressionNode):
         newChild.ast = self.ast
         self.ast.nodeCount += countNodes(newChild) - countNodes(oldChild)
 
-    def swapChildren(
-        self, firstChild: ExpressionNode, secondChild: ExpressionNode
-    ) -> None:
-        if self.leftOperand is firstChild:
-            tmp = self.leftOperand
-            self.leftOperand = self.rightOperand
-            self.rightOperand = tmp
-        elif self.rightOperand is firstChild:
-            tmp = self.rightOperand
-            self.rightOperand = self.leftOperand
-            self.leftOperand = tmp
-        else:
-            raise RuntimeError(
-                f"Unable to swap {firstChild} with {secondChild} for {self}."
-            )
+    def swapChildren(self) -> None:
+        tmp = self.leftOperand
+        self.leftOperand = self.rightOperand
+        self.rightOperand = tmp
 
     def transformOperator(self, newOperator: str) -> None:
         match newOperator:

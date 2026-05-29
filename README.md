@@ -12,8 +12,14 @@ I have been working through the [boot.dev](https://boot.dev/) curriculum to try 
 CritterWorld, as imagined in the Cornell CS2112 class, is an Artificial Life simulation. The simulation consists of a world described by a hexagonal grid. Hexes in the world can be empty or can be occupied by a rock, some food, or by a critter. Rocks represent impassible, indestructible barriers. A critter may consume food that is sitting in the hex in front of it. Food provides the critter with energy for all of the things necessary for survival and reproduction, from simply existing to attacking other critters and reproducing.
 
 <div align="center">
+<p>
 
 ![The Critter Genome Language](specification/critterGrammar.png)
+
+</p>
+<p>
+Formal Definition of the Critter Genome
+</p>
 
 </div>
 
@@ -22,9 +28,14 @@ Critter behavior is controlled by a genome that is described by a simple program
 When a critter reproduces, it passes on its genome to its offspring. However, there is a chance that a mutation will occur in the genome of the offspring. If the mutation turns out to be beneficial, then this new genotype should produce more offspring than the original genotype. With enough turns in the simulation, we should get to see evolution in action, with critters finding more and more effective strategies for successfully passing on their genome.
 
 <div align="center">
+<p>
 
 ![The Proto-Critter Genome](specification/protocritter.png)
 
+</p>
+<p>
+The Proto-Critter Genome
+</p>
 </div>
 
 A complete description of the critter genome, the ways the genome can mutate, and the simulation is available in [project.pdf](specification/project.pdf). This is the document provided to students in the Cornell 2112 class to guide the development of the project and which I am using as my guide as well. There are a number of places where I am deviating from the original specification. For example, the students develop their project in Java. I am using Python, as one of my goals for the project is to lean more about development with Python. I made a slight change to the way random values are selected when a mutation is changing a numerical value in the critters genome. There are also areas where the specification is deliberately ambiguous and students are encouraged to make their own judgments. I have attempted to document all of the assumptions that I made in the source code, though I am certain there are probably some places I failed to do so or did not thoroughly explain my assumption. Hopefully, I will correct those as time goes on. 

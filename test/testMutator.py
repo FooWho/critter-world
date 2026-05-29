@@ -107,7 +107,7 @@ class TestMutator(unittest.TestCase):
     def testNumberTransformPositiveToNegative(self):
         # Positive to Negative
         # UnaryNode should get added -- left operand goes from 1 to UnaryOperator(3). 1 + (-4) = UnaryOperator(3)
-        # Node cound goes from 6 to 7.
+        # Node count goes from 6 to 7.
         program = self.createProgram("1 < 3 --> wait;")
         ast = AbstractSyntaxTree(program)
         mutator = Mutator(ast)
@@ -985,3 +985,86 @@ class TestMutator(unittest.TestCase):
         # Count rules containing "forward" since it can be inserted anywhere
         forward_rules = [r for r in program.rules if "forward" in str(r)]
         self.assertEqual(len(forward_rules), 2)
+
+    def testSensorRemove(self):
+        program = self.createProgram("nearby[5] < 3 --> wait;")
+        ast = AbstractSyntaxTree(program)
+        mutator = Mutator(ast)
+        condition = cast(RelationalOperator, program.rules[0].condition)
+        sensor = cast(DirectedSensorNode, condition.leftOperand)
+        value = sensor.value
+
+        result = mutator.mutateSensorRemove((sensor, condition))
+
+        self.assertTrue(result)
+        self.assertIs(condition.leftOperand, value)
+
+    def testSensorRemoveFails(self):
+        program = self.createProgram("smell < 3 --> wait;")
+        ast = AbstractSyntaxTree(program)
+        mutator = Mutator(ast)
+        condition = cast(RelationalOperator, program.rules[0].condition)
+        sensor = cast(SmellNode, condition.leftOperand)
+
+        result = mutator.mutateSensorRemove((sensor, condition))
+
+        self.assertFalse(result)
+        self.assertIs(condition.leftOperand, sensor)
+
+    def testSensorReplace(self):
+        program = self.createProgram("nearby[5] < 3 --> wait;")
+        ast = AbstractSyntaxTree(program)
+        mutator = Mutator(ast)
+        condition = cast(RelationalOperator, program.rules[0].condition)
+        sensor = cast(DirectedSensorNode, condition.leftOperand)
+
+        result = mutator.mutateSensorReplace((sensor, condition))
+
+        self.assertTrue(result)
+        self.assertIsNot(condition.leftOperand, sensor)
+        self.assertIsInstance(condition.leftOperand, ExpressionNode)
+
+    def testSensorTransform(self):
+        for _ in range(50):
+            program = self.createProgram("nearby[5] < 3 --> wait;")
+            ast = AbstractSyntaxTree(program)
+            mutator = Mutator(ast)
+            condition = cast(RelationalOperator, program.rules[0].condition)
+            sensor = cast(DirectedSensorNode, condition.leftOperand)
+
+            result = mutator.mutateSensorTransform((sensor, condition))
+            self.assertTrue(result)
+            condition.leftOperand = cast(SensorNode, condition.leftOperand)
+            self.assertNotEqual(condition.leftOperand.sensorType.lexeme, "nearby")
+
+            if isinstance(condition.leftOperand, SmellNode):
+                self.assertEqual(
+                    condition.leftOperand.sensorType.tokenType, TOKENS.T_SMELL
+                )
+                return
+        self.fail("Never transformed to SmellNode after 50 tries")
+
+    def testSensorInsert(self):
+        program = self.createProgram("nearby[5] < 3 --> wait;")
+        ast = AbstractSyntaxTree(program)
+        mutator = Mutator(ast)
+        condition = cast(RelationalOperator, program.rules[0].condition)
+        sensor = cast(DirectedSensorNode, condition.leftOperand)
+
+        result = mutator.mutateSensorInsert((sensor, condition))
+
+        self.assertTrue(result)
+        self.assertIsNot(condition.leftOperand, sensor)
+        newNode = condition.leftOperand
+
+        is_child = False
+        if isinstance(newNode, UnaryOperator):
+            is_child = newNode.operand is sensor
+        elif isinstance(newNode, BinaryOperator):
+            is_child = newNode.leftOperand is sensor or newNode.rightOperand is sensor
+        elif isinstance(newNode, MemNode):
+            is_child = newNode.value is sensor
+        elif isinstance(newNode, DirectedSensorNode):
+            is_child = newNode.value is sensor
+
+        self.assertTrue(is_child)

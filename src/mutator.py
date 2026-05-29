@@ -31,6 +31,7 @@ from abstractSyntaxTree import (
     Action,
     Command,
     Rule,
+    SmellNode,
 )
 
 
@@ -157,22 +158,30 @@ class Mutator:
 
         Currently will always return True or raise an error except in one case - We are attempting to perform
         a Replace operation on a <MemNode> in an AST with only one <MemNode>. In this case, we will return False,
-        indicating the mutation failed. Ultimately, I want to clean this up so we "try again", i.e. start the muattion process
+        indicating the mutation failed. Ultimately, I want to clean this up so we "try again", i.e. start the mutation process
         over. This may result in getting rid raising errors, as we can just return False for whatever reason, but probably not.
         Those cases are actually exceptional, typically it means we could not locate a parent or a child in some case
         where we should have.
 
-        Names of the mutations are kind of confusing. For example, A "swap" mutatation swaps the postion of children of
+        Names of the mutations are kind of confusing. For example, A "swap" mutation swaps the position of children of
         the node selected for mutation, but a "remove" mutation removes the node selected for mutation. So sometimes the
         action is happening on the node selected for mutation, other times it is happening on the children. Something
         is always happening to the selected node, but it sometimes feels more like a side effect.
         """
 
-    def mutate(self, mutations: int) -> bool:
+    def mutate(self, mutations: int = 0) -> bool:
+
+        if mutations == 0:
+            roll = random.random()
+            while roll < self.mutationProbability:
+                mutations += 1
+                roll = random.random()
 
         mutationsApplied = 0
         attempts = 0
         maxAttempts = mutations * 100
+
+        print(f"Going for {mutations} mutations.")
 
         while mutationsApplied < mutations and attempts < maxAttempts:
             attempts += 1
@@ -187,9 +196,11 @@ class Mutator:
                     locus = cast(tuple[Rule, Program], locus)
                     success = self.ruleFaultInjector(locus)
                 case Update():
-                    raise NotImplementedError("updateFaultInjector() not implemented.")
+                    locus = cast(tuple[Update, Rule], locus)
+                    success = self.updateFaultInjector(locus)
                 case Action():
-                    raise NotImplementedError("actionFaultInjector() not implemented.")
+                    locus = cast(tuple[Action, Rule], locus)
+                    success = self.actionFaultInjector(locus)
                 case LogicalOperator():
                     locus = cast(tuple[LogicalOperator, Rule | LogicalOperator], locus)
                     success = self.logicalOperatorFaultInjector(locus)
@@ -216,14 +227,16 @@ class Mutator:
                     locus = cast(tuple[MemNode, Update | ExpressionNode], locus)
                     success = self.memNodeFaultInjector(locus)
                 case SensorNode():
-                    locus = cast(tuple[SensorNode, ASTNode], locus)
+                    locus = cast(
+                        tuple[SensorNode, ExpressionNode | RelationalOperator], locus
+                    )
                     success = self.sensorFaultInjector(locus)
                 case _:
                     success = False
 
             if success:
                 mutationsApplied += 1
-
+        print(f"Got {mutationsApplied} mutations.")
         return mutationsApplied == mutations
 
     """
@@ -239,7 +252,7 @@ class Mutator:
 
         Transform does not work. There is nothing to transform the program into.
 
-        Insert does not work, we can't insert a new parent above the progam node.
+        Insert does not work, we can't insert a new parent above the program node.
 
         Duplicate works. We can randomly select a Rule and insert it into the list of rules.
     """
@@ -495,7 +508,7 @@ class Mutator:
         int the place of this Action.
 
         An Action may be transformed by changing it to an Action of a different type, for example, "wait" could
-        be tranformed to "forward".
+        be transformed to "forward".
     """
 
     def actionFaultInjector(
@@ -592,11 +605,11 @@ class Mutator:
 
         A swap is straightforward.
 
-        A replace is also straigtforward.
+        A replace is also straightforward.
 
         A transform simply changes an "and" to an "or" and vice versa.
 
-        An insertion is performed by generating a new LogicalOperator, randomly assignined to be an "and" or an
+        An insertion is performed by generating a new LogicalOperator, randomly assigned to be an "and" or an
         "or" randomly assigning the original node to be the right or left child, then randomly selecting another
         node that is a BooleanOperator from somewhere in the AST and inserting it as the other child.
     """
@@ -671,7 +684,7 @@ class Mutator:
             if selection is not originalNode
         ]
         if not candidates:
-            # No valid cadidates for the replacement
+            # No valid candidates for the replacement
             return False
         target = cast(LogicalOperator, random.choice(candidates).copyNode())
         parentNode.replaceChild(originalNode, target)
@@ -768,7 +781,7 @@ class Mutator:
             if selection is not originalNode
         ]
         if not candidates:
-            # No valid cadidates for the replacement
+            # No valid candidates for the replacement
             return False
         target = cast(BooleanOperator, random.choice(candidates).copyNode())
         parentNode.replaceChild(originalNode, target)
@@ -811,7 +824,7 @@ class Mutator:
             if selection is not originalNode
         ]
         if not candidates:
-            # No valid cadidates for the replacement
+            # No valid candidates for the replacement
             return False
 
         otherOperand = cast(BooleanOperator, random.choice(candidates).copyNode())
@@ -873,7 +886,7 @@ class Mutator:
                 return self.mutateBinaryOperatorInsert(faultLocus)
             case _:
                 raise NotImplementedError(
-                    f"Choice {choice} for binaryOperationFaultInjector() not implimented."
+                    f"Choice {choice} for binaryOperationFaultInjector() not implemented."
                 )
 
     def mutateBinaryOperatorRemove(
@@ -889,7 +902,7 @@ class Mutator:
                 parentNode.replaceChild(originalNode, originalNode.rightOperand)
             case _:
                 raise NotImplementedError(
-                    f"Choice {choice} for mutateRemoveBinaryOperator() not implimented."
+                    f"Choice {choice} for mutateRemoveBinaryOperator() not implemented."
                 )
         return True
 
@@ -1158,11 +1171,11 @@ class Mutator:
         <ExpressionNodes> in the AST. A copy is performed and the copy is inserted as a subtree
         under the parent of the <Number> node.
         
-        A <Number> may be transformed by adding a (positive or negative) integer value. Currenty, 
+        A <Number> may be transformed by adding a (positive or negative) integer value. Currently, 
         this always results results in the creation of a new node that replaces the original,
         i.e. we don't just add to the value. This could change in the future but probably not.
         The transformation of a <Number> node may result in structural changes to the AST. If a
-        positive number becomes negative, a <UnaryOperato> is created to be the parent of the new
+        positive number becomes negative, a <UnaryOperator> is created to be the parent of the new
         value and it replaces the original <Number> in the parent's subtree. Previously, I was collapsing
         double negatives into just a number and removing UnaryOperators with an operand of 0, replacing
         them with just a Number. This is no longer the case, watch out for stale comments.
@@ -1337,20 +1350,20 @@ class Mutator:
         There are 2 valid mutation types for a <MemNode> - Replace, Insert.
         
         We will not allow Remove - a <MemNode> would just get replaced by the expression that resolved its location. Probably not
-        interesting or funcitonal. We could change this in the future.
+        interesting or functional. We could change this in the future.
 
         We will not allow Swap, a MemNode has a single child.
 
         Replace is allowed. Targets depend on what the <MemNode> is. If it is the destination for an Update, valid target must be a <MemNode>.
         Otherwise, anything subclassed from <ExpressionNode> is valid.
 
-        Transform is not allowed, there isn't a differnet kind of MemNode to become.
+        Transform is not allowed, there isn't a different kind of MemNode to become.
 
         Insert is allowed, depending on what the <MemNode> is. If the <MemNode> is the destination of an <Update>, 
         the inserted node must also be a MemNode. For other instances, the inserted node can be anything subclassed from
         <ExpressionNode>.
 
-        Duplicate is not allowed, as <MemNode> does not have variable childen.
+        Duplicate is not allowed, as <MemNode> does not have variable children.
     """
 
     def memNodeFaultInjector(
@@ -1490,17 +1503,216 @@ class Mutator:
 
     """
         <SENSOR>
+
+        There are 4 valid mutations on a sensor node - Remove (for DirectedSensorNodes, not for Smell), 
+        Replace, Transform, and Insert. 
     """
 
-    def sensorFaultInjector(self, faultLocus: tuple[SensorNode, ASTNode]) -> bool:
+    def sensorFaultInjector(
+        self, faultLocus: tuple[SensorNode, ExpressionNode | RelationalOperator]
+    ) -> bool:
         originalNode = faultLocus[0]
         parentNode = faultLocus[1]
-        choice = random.choice([0])
+        choice = random.choice(
+            [
+                Mutations.REMOVE,
+                Mutations.REPLACE,
+                Mutations.TRANSFORM,
+                Mutations.INSERT,
+            ]
+        )
         match choice:
+            case Mutations.REMOVE:
+                return self.mutateSensorRemove(faultLocus)
+            case Mutations.REPLACE:
+                return self.mutateSensorReplace(faultLocus)
+            case Mutations.TRANSFORM:
+                return self.mutateSensorTransform(faultLocus)
+            case Mutations.INSERT:
+                return self.mutateSensorInsert(faultLocus)
             case _:
                 raise NotImplementedError(
                     f"Choice {choice} for sensorFaultInjector() not implemented."
                 )
+
+    def mutateSensorRemove(
+        self, faultLocus: tuple[SensorNode, ExpressionNode | RelationalOperator]
+    ) -> bool:
+        originalNode = faultLocus[0]
+        parentNode = faultLocus[1]
+
+        if isinstance(originalNode, DirectedSensorNode):
+            # DirectedSensorNode has a child
+            originalNode = cast(DirectedSensorNode, originalNode)
+            parentNode.replaceChild(originalNode, originalNode.value)
+            return True
+        else:
+            # Other sensor types do not have a child
+            return False
+
+    def mutateSensorReplace(
+        self, faultLocus: tuple[SensorNode, ExpressionNode | RelationalOperator]
+    ) -> bool:
+        originalNode = faultLocus[0]
+        parentNode = faultLocus[1]
+
+        candidates = [
+            node
+            for node in self.ast.getNodesByType(ExpressionNode)
+            if node is not originalNode
+        ]
+        if not candidates:
+            # There was no valid candidate to select
+            return False
+        target = random.choice(candidates).copyNode()
+        parentNode.replaceChild(originalNode, target)
+        return True
+
+    def mutateSensorTransform(
+        self, faultLocus: tuple[SensorNode, ExpressionNode | RelationalOperator]
+    ) -> bool:
+        originalNode = faultLocus[0]
+        parentNode = faultLocus[1]
+
+        sensorTypes = [
+            "nearby",
+            "ahead",
+            "random",
+            "smell",
+        ]
+        sensorTypes.remove(originalNode.sensorType.lexeme)
+        sensorType = random.choice(sensorTypes)
+        match sensorType:
+            case "nearby":
+                if isinstance(originalNode, DirectedSensorNode):
+                    mutation = DirectedSensorNode(
+                        Token(TOKENS.T_NEARBY, "nearby", 0, 0), originalNode.value
+                    )
+                else:
+                    valueCandidates = self.ast.getNodesByType(ExpressionNode)
+                    if not valueCandidates:
+                        return False
+                    targetExpression = cast(
+                        ExpressionNode, random.choice(valueCandidates).copyNode()
+                    )
+                    mutation = DirectedSensorNode(
+                        Token(TOKENS.T_NEARBY, "nearby", 0, 0), targetExpression
+                    )
+            case "ahead":
+                if isinstance(originalNode, DirectedSensorNode):
+                    mutation = DirectedSensorNode(
+                        Token(TOKENS.T_AHEAD, "ahead", 0, 0), originalNode.value
+                    )
+                else:
+                    valueCandidates = self.ast.getNodesByType(ExpressionNode)
+                    if not valueCandidates:
+                        return False
+                    targetExpression = cast(
+                        ExpressionNode, random.choice(valueCandidates).copyNode()
+                    )
+                    mutation = DirectedSensorNode(
+                        Token(TOKENS.T_AHEAD, "ahead", 0, 0), targetExpression
+                    )
+            case "random":
+                if isinstance(originalNode, DirectedSensorNode):
+                    mutation = DirectedSensorNode(
+                        Token(TOKENS.T_RANDOM, "random", 0, 0), originalNode.value
+                    )
+                else:
+                    valueCandidates = self.ast.getNodesByType(ExpressionNode)
+                    if not valueCandidates:
+                        return False
+                    targetExpression = cast(
+                        ExpressionNode, random.choice(valueCandidates).copyNode()
+                    )
+                    mutation = DirectedSensorNode(
+                        Token(TOKENS.T_RANDOM, "random", 0, 0), targetExpression
+                    )
+            case "smell":
+                mutation = SmellNode(Token(TOKENS.T_SMELL, "smell", 0, 0))
+            case _:
+                raise RuntimeError(
+                    f"No match for sensorType {sensorType} in mutateSensorTransform."
+                )
+
+        parentNode.replaceChild(originalNode, mutation)
+        return True
+
+    def mutateSensorInsert(
+        self, faultLocus: tuple[SensorNode, ExpressionNode | RelationalOperator]
+    ) -> bool:
+        originalNode = faultLocus[0]
+        parentNode = faultLocus[1]
+
+        nodeTypeCandidates = [
+            "BinaryOperator",
+            "UnaryOperator",
+            "MemNode",
+            "DirectedSensorNode",
+        ]
+        nodeType = random.choice(nodeTypeCandidates)
+        match nodeType:
+            case "BinaryOperator":
+                opTypeCandidates = list(SET_MULOPS | SET_ADDOPS)
+                opType = random.choice(opTypeCandidates)
+                if not opType:
+                    raise RuntimeError(f"Failed to get opType for {opTypeCandidates}.")
+                lexeme = self.operatorMap.get(opType)
+                if not lexeme:
+                    raise RuntimeError(f"Failed to get opType for {opTypeCandidates}.")
+                op = TokenLexeme(opType, lexeme)
+                otherOperand = random.choice(
+                    [
+                        expression
+                        for expression in self.ast.getNodesByType(ExpressionNode)
+                        if expression is not originalNode
+                    ]
+                )
+                if not otherOperand:
+                    return False
+                otherOperand = cast(ExpressionNode, otherOperand.copyNode())
+                side = random.choice([Side.LEFT, Side.RIGHT])
+                match side:
+                    case Side.LEFT:
+                        mutation = BinaryOperator(originalNode, op, otherOperand)
+                    case Side.RIGHT:
+                        mutation = BinaryOperator(otherOperand, op, originalNode)
+                    case _:
+                        raise RuntimeError(f"Failed to match side for {side}.")
+            case "UnaryOperator":
+                mutation = UnaryOperator(TokenLexeme(TOKENS.T_MINUS, "-"), originalNode)
+            case "MemNode":
+                mutation = MemNode(originalNode)
+            case "DirectedSensorNode":
+                sensorTypeCandidates = [
+                    "nearby",
+                    "ahead",
+                    "random",
+                ]
+                sensorType = random.choice(sensorTypeCandidates)
+                match sensorType:
+                    case "nearby":
+                        mutation = DirectedSensorNode(
+                            Token(TOKENS.T_NEARBY, "nearby", 0, 0), originalNode
+                        )
+                    case "ahead":
+                        mutation = DirectedSensorNode(
+                            Token(TOKENS.T_AHEAD, "ahead", 0, 0), originalNode
+                        )
+                    case "random":
+                        mutation = DirectedSensorNode(
+                            Token(TOKENS.T_RANDOM, "random", 0, 0), originalNode
+                        )
+                    case _:
+                        raise RuntimeError(
+                            f"Failed to match sensorType for {sensorType}."
+                        )
+            case _:
+                raise NotImplementedError(
+                    f"Choice {nodeType} for mutateBinaryOperatorInsert() nodeType is not implemented."
+                )
+        parentNode.replaceChild(originalNode, mutation)
+        return True
 
     """
         </SENSOR>

@@ -21,43 +21,41 @@ from abstractSyntaxTree import (
     ExpressionNode,
     countNodes,
 )
-
 from mutator import Mutator
+import json, sys
 
 
 def main():
-    ast = AbstractSyntaxTree(
-        Parser(Lexer().tokenize("nearby[3] = 1 --> wait;")).parse()
-    )
-    print(ast.nodeCount)
+    with open("parameters.json", "r") as file:
+        data = json.load(file)
+
+    if len(sys.argv) > 1:
+        parentFile = sys.argv[1]
+    else:
+        parentFile = "daddy.crtr"
+    if len(sys.argv) > 2:
+        childFile = sys.argv[2]
+    else:
+        childFile = "baby.crtr"
+    if len(sys.argv) > 3:
+        mutations = int(sys.argv[3])
+    else:
+        mutations = 0
+
+    with open(parentFile, "r", encoding="utf-8") as file:
+        content = file.read()
 
     lexer = Lexer()
-    parser = Parser(lexer.tokenize("--(--(---0)) = 5 --> wait;"))
-    program = parser.parse()
-
-    lexer = Lexer()
-    with open("test/critter1.crtr", "r", encoding="utf-8") as file:
-        lines = file.readlines()
-    lineContent = lines[8:]
-    content = "".join(lineContent)
     tokens = lexer.tokenize(content)
     parser = Parser(tokens)
-    Program()
-    try:
-        ast = AbstractSyntaxTree(parser.parse())
-    except CritterParseError as cpe:
-        print(cpe)
-        exit(1)
-    print(str(ast.rootNode))
-    print("* Ok *")
-    print(f"Nodes: {ast.nodeCount}")
+    daddy = AbstractSyntaxTree(parser.parse())
 
-    mutator = Mutator(ast)
-    # mutator.faultInjection(ast)
+    baby = AbstractSyntaxTree(daddy.copyProgram())
+    mutator = Mutator(baby, data.get("MUTATION_PROBABILITY"))
+    mutator.mutate(mutations)
 
-    if mutator.mutate(1):
-        print(str(ast.rootNode))
-        # pass
+    with open(childFile, "w", encoding="utf-8") as file:
+        file.write(str(baby.rootNode))
 
 
 if __name__ == "__main__":

@@ -1,0 +1,23 @@
+{
+    "BASE_DAMAGE": 100,
+    "DAMAGE_INC": 0.2, 
+    "ENERGY_PER_SIZE": 500,
+    "FOOD_PER_SIZE": 200,
+    "MAX_SMELL_DISTANCE": 10,
+    "ROCK_VALUE": -1,
+    "WIDTH": 50,
+    "HEIGHT": 87,
+    "MAX_RULES_PER_TURN": 999,
+    "SOLAR_FLUX": 1,
+    "MOVE_COST": 3,
+    "ATTACK_COST": 5,
+    "GROW_COST": 1,
+    "BUD_COST": 9,
+    "RULE_COST": 2,
+    "ABILITY_COST": 25,
+    "INITIAL_ENERGY": 250,
+    "MIN_MEMORY": 7,
+    "MANNA_COUNT": 1,
+    "MANNA_AMOUNT": 10,
+    "MUTATION_PROBABILITY": 0.25
+}

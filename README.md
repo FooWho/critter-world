@@ -51,6 +51,24 @@ The fault injector was both complex and tedious at the same time. The project do
 With the completion of Phase 1, I am going to submit the project as done for [boot.dev](https://boot.dev/), but I am going to continue working on it.
 
 ### How to install and use Phase 1.
+Clone this repository and run uv sync. There are no special libraries being used. I used Python 3.12 to develop CritterWorld, so I have specified that as a dependency.
+
+```
+git clone https://github.com/FooWho/critter-world.git your-local-workspace
+uv sync
+```
+
+In the top level folder, there are two critter genome programs, "daddy.crtr" and "baby.crtr". If you run the program with no arguments, it will read in the parent critter (daddy.crtr), and reproduce it, using the mutation probabilities defined in parameters.json. The offspring will be written out as "baby.crtr". Alternately, you may provide an argument for a different parent critter filename, a different child critter file name, and to force a specific number of mutations.
+
+```
+uv run src/main.py [parentFile] [childFile] [numberOfMutations]
+```
+
+If uv is not available, there should be no issue with running main.py directly, provided your version of Python is sufficient.
+
+```
+python3 src/main.py [parentFile] [childFile] [numberOfMutations]
+```
 
 ## Phase 2
 The next phase in the project is to implement an interpreter for the critters and a simulator for the world with a console interface for interacting with it.

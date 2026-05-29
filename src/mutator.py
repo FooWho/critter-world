@@ -2,7 +2,16 @@ from __future__ import annotations
 from typing import cast
 from enum import Enum
 import random, math
-from schemas import TOKENS, Token, TokenLexeme, SET_ACTIONS, SET_RELOPS, SET_LOGICOPS
+from schemas import (
+    TOKENS,
+    Token,
+    TokenLexeme,
+    SET_ACTIONS,
+    SET_RELOPS,
+    SET_LOGICOPS,
+    SET_ADDOPS,
+    SET_MULOPS,
+)
 from abstractSyntaxTree import (
     AbstractSyntaxTree,
     countNodes,
@@ -190,10 +199,15 @@ class Mutator:
                     )
                     success = self.relationalOperatorFaultInjector(locus)
                 case BinaryOperator():
-                    locus = cast(tuple[BinaryOperator, ASTNode], locus)
+                    locus = cast(
+                        tuple[BinaryOperator, ExpressionNode | RelationalOperator],
+                        locus,
+                    )
                     success = self.binaryOperatorFaultInjector(locus)
                 case UnaryOperator():
-                    locus = cast(tuple[UnaryOperator, ASTNode], locus)
+                    locus = cast(
+                        tuple[UnaryOperator, ExpressionNode | RelationalOperator], locus
+                    )
                     success = self.unaryOperatorFaultInjector(locus)
                 case Number():
                     locus = cast(tuple[Number, ExpressionNode], locus)
@@ -205,7 +219,6 @@ class Mutator:
                     locus = cast(tuple[SensorNode, ASTNode], locus)
                     success = self.sensorFaultInjector(locus)
                 case _:
-                    print("Got skunked")
                     success = False
 
             if success:
@@ -245,40 +258,32 @@ class Mutator:
 
         return False
 
-    def mutateSwapProgram(
-        self, faultLocus: tuple[Program, AbstractSyntaxTree], target: Rule | None = None
-    ) -> bool:
+    def mutateSwapProgram(self, faultLocus: tuple[Program, AbstractSyntaxTree]) -> bool:
 
         originalNode = faultLocus[0]
+        length = len(originalNode.rules)
+        if length < 2:
+            # A swap can't be performed if we only have one rule.
+            return False
+
+        targets = random.sample(originalNode.rules, 2)
+        originalNode.swapChildren(targets[0], targets[1])
+        return True
+
+    def mutateDuplicateProgram(
+        self, faultLocus: tuple[Program, AbstractSyntaxTree], target: Rule | None = None
+    ) -> bool:
+        originalNode = faultLocus[0]
+
         if not target:
             candidates = self.ast.getNodesByType(Rule)
             if not candidates:
                 # There were no Rule nodes in the AST.
                 # This shouldn't happen, so we will raise exception instead of return False
                 raise RuntimeError(f"{originalNode} has no rules!")
+            target = random.choice(candidates)
 
-            target = cast(Rule, random.choice(candidates).copyNode())
-
-        length = len(originalNode.rules)
-        if length < 2:
-            # A swap can't be performed if we only have one rule.
-            return False
-        location = random.randint(0, length)
-        originalNode.insertChild(target, location)
-        return True
-
-    def mutateDuplicateProgram(
-        self, faultLocus: tuple[Program, AbstractSyntaxTree]
-    ) -> bool:
-        originalNode = faultLocus[0]
-
-        candidates = self.ast.getNodesByType(Rule)
-        if not candidates:
-            # There were no Rule nodes in the AST.
-            # This shouldn't happen, so we will raise exception instead of return False
-            raise RuntimeError(f"{originalNode} has no rules!")
-        target = random.choice(candidates)
-        target = target.copyNode()
+        target = cast(Rule, target.copyNode())
         length = len(originalNode.rules)
         location = random.randint(0, length)
         originalNode.insertChild(target, location)
@@ -827,6 +832,319 @@ class Mutator:
     """
 
     """
+        <BINARY_OPERATOR>
+
+        There are 5 valid mutations for a <BinaryOperator> node - Remove, Swap, Replace, Transform, and Insert.
+
+        Remove - Promote the left or right operand to the take this nodes place as the child of the grandparent.
+
+        Swap - Swap left and right operands.
+
+        Replace - Any node of type ExpressionNode is randomly selected and copied to take this node's place.
+
+        Transform - Change the operator to a different operator.
+
+        Insert - Create an ExpressionNode and put this node as one of the children. If you need another child, copy a random ExpressionNode.
+    """
+
+    def binaryOperatorFaultInjector(
+        self, faultLocus: tuple[BinaryOperator, ExpressionNode | RelationalOperator]
+    ) -> bool:
+
+        choice = random.choice(
+            [
+                Mutations.REMOVE,
+                Mutations.SWAP,
+                Mutations.REPLACE,
+                Mutations.TRANSFORM,
+                Mutations.INSERT,
+            ]
+        )
+        match choice:
+            case Mutations.REMOVE:
+                return self.mutateBinaryOperatorRemove(faultLocus)
+            case Mutations.SWAP:
+                return self.mutateBinaryOperatorSwap(faultLocus)
+            case Mutations.REPLACE:
+                return self.mutateBinaryOperatorReplace(faultLocus)
+            case Mutations.TRANSFORM:
+                return self.mutateBinaryOperatorTransform(faultLocus)
+            case Mutations.INSERT:
+                return self.mutateBinaryOperatorInsert(faultLocus)
+            case _:
+                raise NotImplementedError(
+                    f"Choice {choice} for binaryOperationFaultInjector() not implimented."
+                )
+
+    def mutateBinaryOperatorRemove(
+        self, faultLocus: tuple[BinaryOperator, ExpressionNode | RelationalOperator]
+    ) -> bool:
+        originalNode = faultLocus[0]
+        parentNode = faultLocus[1]
+        choice = random.choice([Side.LEFT, Side.RIGHT])
+        match choice:
+            case Side.LEFT:
+                parentNode.replaceChild(originalNode, originalNode.leftOperand)
+            case Side.RIGHT:
+                parentNode.replaceChild(originalNode, originalNode.rightOperand)
+            case _:
+                raise NotImplementedError(
+                    f"Choice {choice} for mutateRemoveBinaryOperator() not implimented."
+                )
+        return True
+
+    def mutateBinaryOperatorSwap(
+        self, faultLocus: tuple[BinaryOperator, ExpressionNode | RelationalOperator]
+    ) -> bool:
+        if not self.ast.rootNode:
+            raise RuntimeError("AST was not setup in init for Mutator")
+        originalNode = faultLocus[0]
+        originalNode.swapChildren()
+        return True
+
+    def mutateBinaryOperatorReplace(
+        self, faultLocus: tuple[BinaryOperator, ExpressionNode | RelationalOperator]
+    ) -> bool:
+        originalNode = faultLocus[0]
+        parentNode = faultLocus[1]
+
+        candidates = [
+            n for n in self.ast.getNodesByType(ExpressionNode) if n is not originalNode
+        ]
+        if not candidates:
+            # Nothing viable to copy.
+            return False
+        mutation = random.choice(candidates).copyNode()
+        parentNode.replaceChild(originalNode, mutation)
+        return True
+
+    def mutateBinaryOperatorTransform(
+        self, faultLocus: tuple[BinaryOperator, ExpressionNode | RelationalOperator]
+    ) -> bool:
+        originalNode = faultLocus[0]
+
+        choices = ["+", "-", "*", "/", "mod"]
+        choices.remove(originalNode.operator.lexeme)
+        choice = random.choice(choices)
+        originalNode.transformOperator(choice)
+        return True
+
+    def mutateBinaryOperatorInsert(
+        self, faultLocus: tuple[BinaryOperator, ExpressionNode | RelationalOperator]
+    ) -> bool:
+        originalNode = faultLocus[0]
+        parentNode = faultLocus[1]
+
+        nodeTypeCandidates = [
+            "BinaryOperator",
+            "UnaryOperator",
+            "MemNode",
+            "DirectedSensorNode",
+        ]
+        nodeType = random.choice(nodeTypeCandidates)
+        match nodeType:
+            case "BinaryOperator":
+                opTypeCandidates = list(SET_MULOPS | SET_ADDOPS)
+                opType = random.choice(opTypeCandidates)
+                if not opType:
+                    raise RuntimeError(f"Failed to get opType for {opTypeCandidates}.")
+                lexeme = self.operatorMap.get(opType)
+                if not lexeme:
+                    raise RuntimeError(f"Failed to get opType for {opTypeCandidates}.")
+                op = TokenLexeme(opType, lexeme)
+                otherOperand = random.choice(
+                    [
+                        expression
+                        for expression in self.ast.getNodesByType(ExpressionNode)
+                        if expression is not originalNode
+                    ]
+                )
+                if not otherOperand:
+                    return False
+                otherOperand = cast(ExpressionNode, otherOperand.copyNode())
+                side = random.choice([Side.LEFT, Side.RIGHT])
+                match side:
+                    case Side.LEFT:
+                        mutation = BinaryOperator(originalNode, op, otherOperand)
+                    case Side.RIGHT:
+                        mutation = BinaryOperator(otherOperand, op, originalNode)
+                    case _:
+                        raise RuntimeError(f"Failed to match side for {side}.")
+            case "UnaryOperator":
+                mutation = UnaryOperator(TokenLexeme(TOKENS.T_MINUS, "-"), originalNode)
+            case "MemNode":
+                mutation = MemNode(originalNode)
+            case "DirectedSensorNode":
+                sensorTypeCandidates = [
+                    "nearby",
+                    "ahead",
+                    "random",
+                ]
+                sensorType = random.choice(sensorTypeCandidates)
+                match sensorType:
+                    case "nearby":
+                        mutation = DirectedSensorNode(
+                            Token(TOKENS.T_NEARBY, "nearby", 0, 0), originalNode
+                        )
+                    case "ahead":
+                        mutation = DirectedSensorNode(
+                            Token(TOKENS.T_AHEAD, "ahead", 0, 0), originalNode
+                        )
+                    case "random":
+                        mutation = DirectedSensorNode(
+                            Token(TOKENS.T_RANDOM, "random", 0, 0), originalNode
+                        )
+                    case _:
+                        raise RuntimeError(
+                            f"Failed to match sensorType for {sensorType}."
+                        )
+            case _:
+                raise NotImplementedError(
+                    f"Choice {nodeType} for mutateBinaryOperatorInsert() nodeType is not implemented."
+                )
+        parentNode.replaceChild(originalNode, mutation)
+        return True
+
+    """
+        </BINARY_OPERATOR>
+    """
+
+    """
+        <UNARY_OPERATOR>
+
+        There are 3 valid mutations for a <UnaryOperator> - Remove, Replace, and Insert.
+    """
+
+    def unaryOperatorFaultInjector(
+        self, faultLocus: tuple[UnaryOperator, ExpressionNode | RelationalOperator]
+    ) -> bool:
+        choice = random.choice(
+            [
+                Mutations.REMOVE,
+                Mutations.REPLACE,
+                Mutations.INSERT,
+            ]
+        )
+        match choice:
+            case Mutations.REMOVE:
+                return self.mutateUnaryOperatorRemove(faultLocus)
+            case Mutations.REPLACE:
+                return self.mutateUnaryOperatorReplace(faultLocus)
+            case Mutations.INSERT:
+                return self.mutateUnaryOperatorInsert(faultLocus)
+            case _:
+                raise NotImplementedError(
+                    f"Choice {choice} for unaryOperatorFaultInjector() nodeType is not implemented."
+                )
+        return True
+
+    def mutateUnaryOperatorRemove(
+        self, faultLocus: tuple[UnaryOperator, ExpressionNode | RelationalOperator]
+    ) -> bool:
+        originalNode = faultLocus[0]
+        parentNode = faultLocus[1]
+
+        parentNode.replaceChild(originalNode, originalNode.operand)
+        return True
+
+    def mutateUnaryOperatorReplace(
+        self, faultLocus: tuple[UnaryOperator, ExpressionNode | RelationalOperator]
+    ) -> bool:
+        originalNode = faultLocus[0]
+        parentNode = faultLocus[1]
+
+        candidates = [
+            expression
+            for expression in self.ast.getNodesByType(ExpressionNode)
+            if expression is not originalNode
+        ]
+        if not candidates:
+            return False
+        mutation = cast(ExpressionNode, random.choice(candidates).copyNode())
+        parentNode.replaceChild(originalNode, mutation)
+        return True
+
+    def mutateUnaryOperatorInsert(
+        self, faultLocus: tuple[UnaryOperator, ExpressionNode | RelationalOperator]
+    ) -> bool:
+        originalNode = faultLocus[0]
+        parentNode = faultLocus[1]
+
+        nodeTypeCandidates = [
+            "BinaryOperator",
+            "UnaryOperator",
+            "MemNode",
+            "DirectedSensorNode",
+        ]
+        nodeType = random.choice(nodeTypeCandidates)
+        match nodeType:
+            case "BinaryOperator":
+                opTypeCandidates = list(SET_MULOPS | SET_ADDOPS)
+                opType = random.choice(opTypeCandidates)
+                if not opType:
+                    raise RuntimeError(f"Failed to get opType for {opTypeCandidates}.")
+                lexeme = self.operatorMap.get(opType)
+                if not lexeme:
+                    raise RuntimeError(f"Failed to get opType for {opTypeCandidates}.")
+                op = TokenLexeme(opType, lexeme)
+                otherOperand = random.choice(
+                    [
+                        expression
+                        for expression in self.ast.getNodesByType(ExpressionNode)
+                        if expression is not originalNode
+                    ]
+                )
+                if not otherOperand:
+                    return False
+                otherOperand = cast(ExpressionNode, otherOperand.copyNode())
+                side = random.choice([Side.LEFT, Side.RIGHT])
+                match side:
+                    case Side.LEFT:
+                        mutation = BinaryOperator(originalNode, op, otherOperand)
+                    case Side.RIGHT:
+                        mutation = BinaryOperator(otherOperand, op, originalNode)
+                    case _:
+                        raise RuntimeError(f"Failed to match side for {side}.")
+            case "UnaryOperator":
+                mutation = UnaryOperator(TokenLexeme(TOKENS.T_MINUS, "-"), originalNode)
+            case "MemNode":
+                mutation = MemNode(originalNode)
+            case "DirectedSensorNode":
+                sensorTypeCandidates = [
+                    "nearby",
+                    "ahead",
+                    "random",
+                ]
+                sensorType = random.choice(sensorTypeCandidates)
+                match sensorType:
+                    case "nearby":
+                        mutation = DirectedSensorNode(
+                            Token(TOKENS.T_NEARBY, "nearby", 0, 0), originalNode
+                        )
+                    case "ahead":
+                        mutation = DirectedSensorNode(
+                            Token(TOKENS.T_AHEAD, "ahead", 0, 0), originalNode
+                        )
+                    case "random":
+                        mutation = DirectedSensorNode(
+                            Token(TOKENS.T_RANDOM, "random", 0, 0), originalNode
+                        )
+                    case _:
+                        raise RuntimeError(
+                            f"Failed to match sensorType for {sensorType}."
+                        )
+            case _:
+                raise NotImplementedError(
+                    f"Choice {nodeType} for mutateBinaryOperatorInsert() nodeType is not implemented."
+                )
+        parentNode.replaceChild(originalNode, mutation)
+        return True
+
+    """
+        </UNARY_OPERATOR>
+    """
+
+    """
         <NUMBER>
 
         There are three valid mutation types for a <Number> node - Replace, Transform, and Insert.
@@ -959,7 +1277,7 @@ class Mutator:
                         TOKENS.T_MOD,
                     ]
                 )
-                side = random.choice(["left", "right"])
+                side = random.choice([Side.LEFT, Side.RIGHT])
                 opLexeme = Mutator.operatorMap.get(opChoice) or ""
                 if not opLexeme:
                     raise RuntimeError(
@@ -978,7 +1296,7 @@ class Mutator:
                     ExpressionNode, random.choice(candidates).copyNode()
                 )
 
-                if side == "left":
+                if side == Side.LEFT:
                     mutation = BinaryOperator(
                         originalNode, TokenLexeme(opChoice, opLexeme), otherExpression
                     )
@@ -1014,122 +1332,8 @@ class Mutator:
     """
 
     """
-        <BinaryOperator>
+        <MEMNODE>
 
-        There are 5 valid mutation types for a <BinaryOperator> - Remove, Swap, Replace, Transform, and Insert.
-
-        A remove mutation is valid. Select the left or right operand at random and attach it to the parent of the
-        BinaryOperator. So, for example: "3 + 5 > 2 --> wait;" could mutate to "3 > 2 --> wait;" or to "5 > 2 --> wait;".
-
-        A swap mutation is valid. Just swap the operands, so 3 + 5 becomes 5 + 3.
-
-        A replace mutation is valid. The BinaryOperator can be replaced by a copy of any node that is an ExpressionNode 
-        selected from anywhere in the AST.
-
-        A transform mutation is valid. Randomly select one of the other four operators, so for example "4 + 2" could become
-        "4 mod 2" or "4 * 2".
-
-        An insert mutation is valid. Generate a <RelationalOperator>, <BinaryOperator>, or <UnaryOperator>, <MemNode>, or
-        <DirectedSensorNode. Insert the <BinaryOperator> as one of the operands and grab another random expression from 
-        somewhere in the AST to be the other operand (if we creating a <RelationalOperator> or a <BinaryOperator>).
-    """
-
-    def binaryOperatorFaultInjector(
-        self, faultLocus: tuple[BinaryOperator, ASTNode]
-    ) -> bool:
-
-        choice = random.choice(
-            [
-                Mutations.REMOVE,
-                Mutations.SWAP,
-                Mutations.REPLACE,
-                Mutations.TRANSFORM,
-                Mutations.INSERT,
-            ]
-        )
-        match choice:
-            case Mutations.REMOVE:
-                return self.mutateBinaryOperatorRemove(faultLocus)
-            case Mutations.SWAP:
-                return self.mutateBinaryOperatorSwap(faultLocus)
-            case Mutations.REPLACE:
-                return self.mutateBinaryOperatorReplace(faultLocus)
-            case Mutations.TRANSFORM:
-                return self.mutateBinaryOperatorTransform(faultLocus)
-            case Mutations.INSERT:
-                raise NotImplementedError(
-                    f"Choice {choice} for binaryOperationFaultInjector() not implimented."
-                )
-            case _:
-                raise NotImplementedError(
-                    f"Choice {choice} for binaryOperationFaultInjector() not implimented."
-                )
-
-    def mutateBinaryOperatorRemove(
-        self, faultLocus: tuple[BinaryOperator, ASTNode]
-    ) -> bool:
-        originalNode = faultLocus[0]
-        parentNode = faultLocus[1]
-        choice = random.choice(["left", "right"])
-        match choice:
-            case "left":
-                parentNode.replaceChild(originalNode, originalNode.leftOperand)
-            case "right":
-                parentNode.replaceChild(originalNode, originalNode.rightOperand)
-            case _:
-                raise NotImplementedError(
-                    f"Choice {choice} for mutateRemoveBinaryOperator() not implimented."
-                )
-        return True
-
-    def mutateBinaryOperatorSwap(
-        self, faultLocus: tuple[BinaryOperator, ASTNode]
-    ) -> bool:
-        if not self.ast.rootNode:
-            raise RuntimeError("AST was not setup in init for Mutator")
-        originalNode = faultLocus[0]
-        originalNode.swapChildren()
-        return True
-
-    def mutateBinaryOperatorReplace(
-        self, faultLocus: tuple[BinaryOperator, ASTNode]
-    ) -> bool:
-        originalNode = faultLocus[0]
-        parentNode = faultLocus[1]
-
-        candidates = [
-            n for n in self.ast.getNodesByType(ExpressionNode) if n is not originalNode
-        ]
-        mutation = random.choice(candidates)
-        parentNode.replaceChild(originalNode, cast(ExpressionNode, mutation.copyNode()))
-        return True
-
-    def mutateBinaryOperatorTransform(
-        self, faultLocus: tuple[BinaryOperator, ASTNode]
-    ) -> bool:
-        originalNode = faultLocus[0]
-
-        choices = ["+", "-", "*", "/", "mod"]
-        choices.remove(originalNode.operator.lexeme)
-        choice = random.choice(choices)
-        originalNode.transformOperator(choice)
-        return True
-
-    """
-        </BinaryOperator>
-    """
-
-    def sensorFaultInjector(self, faultLocus: tuple[SensorNode, ASTNode]) -> bool:
-        originalNode = faultLocus[0]
-        parentNode = faultLocus[1]
-        choice = random.choice([0])
-        match choice:
-            case _:
-                raise NotImplementedError(
-                    f"Choice {choice} for sensorFaultInjector() not implemented."
-                )
-
-    """
         There are 2 valid mutation types for a <MemNode> - Replace, Insert.
         
         We will not allow Remove - a <MemNode> would just get replaced by the expression that resolved its location. Probably not
@@ -1147,13 +1351,12 @@ class Mutator:
         <ExpressionNode>.
 
         Duplicate is not allowed, as <MemNode> does not have variable childen.
-
     """
 
     def memNodeFaultInjector(
         self,
         faultLocus: tuple[MemNode, Update | ExpressionNode],
-        faultType: int | None = None,
+        faultType: Mutations | None = None,
     ) -> bool:
         originalNode = faultLocus[0]
         parentNode = faultLocus[1]
@@ -1239,7 +1442,7 @@ class Mutator:
                     ]
                 )
 
-                opLexeme = Mutator.operatorMap.get(opChoice) or ""
+                opLexeme = Mutator.operatorMap.get(opChoice)
                 if not opLexeme:
                     raise RuntimeError(
                         f"Failed to get lexeme for {opChoice} in mutateInsertMemNode()."
@@ -1255,8 +1458,8 @@ class Mutator:
                 otherExpression = cast(
                     ExpressionNode, random.choice(candidates).copyNode()
                 )
-                side = random.choice([0, 1])
-                if side == 0:
+                side = random.choice([Side.LEFT, Side.RIGHT])
+                if side == Side.LEFT:
                     mutation = BinaryOperator(
                         originalNode, TokenLexeme(opChoice, opLexeme), otherExpression
                     )
@@ -1265,28 +1468,40 @@ class Mutator:
                         otherExpression, TokenLexeme(opChoice, opLexeme), originalNode
                     )
             case NodeType.DIRECTED_SENSOR_NODE:
-                choice = random.choice(
+                sensorChoice = random.choice(
                     [TOKENS.T_AHEAD, TOKENS.T_NEARBY, TOKENS.T_RANDOM]
                 )
-                lexeme = Mutator.operatorMap.get(choice) or ""
-                token = Token(choice, lexeme, 0, 0)
+                lexeme = Mutator.operatorMap.get(sensorChoice) or ""
+                token = Token(sensorChoice, lexeme, 0, 0)
                 mutation = DirectedSensorNode(token, originalNode)
             case NodeType.MEMNODE:
                 mutation = MemNode(originalNode)
             case _:
-                raise RuntimeError("This shouldn't happen.")
+                raise NotImplementedError(
+                    f"Choice {choice} for mutateMemNodeInsert() not implemented."
+                )
 
         parentNode.replaceChild(originalNode, mutation)
         return True
 
-    def unaryOperatorFaultInjector(
-        self, faultLocus: tuple[UnaryOperator, ASTNode]
-    ) -> None:
+    """
+        </MEMNODE>
+    """
+
+    """
+        <SENSOR>
+    """
+
+    def sensorFaultInjector(self, faultLocus: tuple[SensorNode, ASTNode]) -> bool:
         originalNode = faultLocus[0]
         parentNode = faultLocus[1]
         choice = random.choice([0])
         match choice:
             case _:
                 raise NotImplementedError(
-                    f"Choice {choice} for unaryOperatorFaultInjector() not implemented."
+                    f"Choice {choice} for sensorFaultInjector() not implemented."
                 )
+
+    """
+        </SENSOR>
+    """
